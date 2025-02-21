@@ -12,14 +12,15 @@ STA-Net: Spatial–temporal alignment network for hybrid EEG-fNIRS decoding [[Pa
 - [Simultaneous acquisition of EEG and NIRS during cognitive tasks for an open access dataset](https://doc.ml.tu-berlin.de/simultaneous_EEG_NIRS/)
 
 ## Citation
-Mutian Liu, Banghua Yang, Lin Meng, Yonghuai Zhang, Shouwei Gao, Peng Zan, Xinxing Xia,
-STA-Net: Spatial–temporal alignment network for hybrid EEG-fNIRS decoding,
-Information Fusion,
-Volume 119,
-2025,
-103023,
-ISSN 1566-2535,
-https://doi.org/10.1016/j.inffus.2025.103023.
-
+```
+@article{liu2025sta,
+  title={STA-Net: Spatial--temporal alignment network for hybrid EEG-fNIRS decoding},
+  author={Liu, Mutian and Yang, Banghua and Meng, Lin and Zhang, Yonghuai and Gao, Shouwei and Zan, Peng and Xia, Xinxing},
+  journal={Information Fusion},
+  pages={103023},
+  year={2025},
+  publisher={Elsevier}
+}
+``` 
 
 
