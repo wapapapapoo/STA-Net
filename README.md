@@ -12,6 +12,7 @@ STA-Net: Spatial–temporal alignment network for hybrid EEG-fNIRS decoding [[Pa
 - [Simultaneous acquisition of EEG and NIRS during cognitive tasks for an open access dataset](https://doc.ml.tu-berlin.de/simultaneous_EEG_NIRS/)
 
 ## Citation
+I would appreciate you citing us in your paper.
 ```
 @article{liu2025sta,
   title={STA-Net: Spatial--temporal alignment network for hybrid EEG-fNIRS decoding},
