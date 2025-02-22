@@ -21,6 +21,9 @@ STA-Net: Spatial–temporal alignment network for hybrid EEG-fNIRS decoding [[Pa
   year={2025},
   publisher={Elsevier}
 }
-``` 
+```
+
+## Contact
+shulmt@shu.edu.cn
 
 
