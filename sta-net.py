@@ -3,6 +3,7 @@ import tensorflow as tf
 from tensorflow import keras
 from keras import layers
 
+# If you have any questions, please contact us at shulmt@shu.edu.cn
 
 def pearson_r(eeg, fnirs):
     mx = tf.math.reduce_mean(eeg, axis=1, keepdims=True)
