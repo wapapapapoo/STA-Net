@@ -6,7 +6,7 @@ STA-Net: Spatial–temporal alignment network for hybrid EEG-fNIRS decoding [[Pa
 - Python 3.9.7
 - Tensorflow 2.10
 
-  (Please make sure that your TensorFlow version is 2.10. The input shape of the latest version of some functions has changed, such as Conv3D function, which may cause bugs.)
+  (Please make sure that your TensorFlow version is **2.10**. The input shape of the latest version of some functions has changed, such as Conv3D function, which may cause bugs.)
 
 ## Dataset
 
