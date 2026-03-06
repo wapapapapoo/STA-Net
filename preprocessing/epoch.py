@@ -71,7 +71,7 @@ for subject in subject_list:
     save_dir = r'data/epoch'
     save_name = subject
 
-    os.makedirs(save_dir)
+    os.makedirs(save_dir, exist_ok=True)
     np.savez(os.path.join(save_dir,save_name),**save_dict)
     print('\n==============save {} success=============\n'.format(save_name))
 

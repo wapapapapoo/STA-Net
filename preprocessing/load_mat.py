@@ -47,7 +47,7 @@ for name in subject_list:
     save_dir = r'data/mat2array'
     save_name = name
 
-    os.makedirs(save_dir)
+    os.makedirs(save_dir, exist_ok=True)
     np.savez(os.path.join(save_dir,save_name),**save_dict)
     print('\n==============save {} success=============\n'.format(save_name))
 
