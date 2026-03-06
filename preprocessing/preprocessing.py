@@ -14,76 +14,85 @@ fnirs_chn_names = ['AF7','AFF5','AFp7','AF5h','AFp3','AFF3h','AF1','AFFz','AFpz'
 fnirs_info = mne.create_info(ch_names=fnirs_chn_names, sfreq=10, ch_types='eeg')
 fnirs_info.set_montage('standard_1005')
 
+
+subject_list = []
+
+folder_path = r'data/mat2array/'
+for filename in os.listdir(folder_path):
+    subject_no = filename.split('.')[0]
+
+    subject_list.append(subject_no)
+
 # begin preprocess
-subject_no = 'VP026'
-with np.load(r'data/mat2array/{}.npz'.format(subject_no)) as data:
-    eeg = data['eeg']
-    eeg_time = data['eeg_time']
-    hbo = data['hbo']
-    hbr = data['hbr']
-    fnirs_time = data['fnirs_time']
-    label = data['label']
+for subject_no in subject_list:
+    with np.load(r'data/mat2array/{}.npz'.format(subject_no)) as data:
+        eeg = data['eeg']
+        eeg_time = data['eeg_time']
+        hbo = data['hbo']
+        hbr = data['hbr']
+        fnirs_time = data['fnirs_time']
+        label = data['label']
 
 
-# eeg
-raw = mne.io.RawArray(data=eeg[:-2,:], info=eeg_info)
+    # eeg
+    raw = mne.io.RawArray(data=eeg[:-2,:], info=eeg_info)
 
-raw_notch = raw.notch_filter(np.arange(50, 100, 50))
-raw_filtered = raw_notch.filter(0.5, 50., method='iir', iir_params=dict(order=6, ftype='butter'))
+    raw_notch = raw.notch_filter(np.arange(50, 100, 50))
+    raw_filtered = raw_notch.filter(0.5, 50., method='iir', iir_params=dict(order=6, ftype='butter'))
 
-raw_avg_ref = raw_filtered.set_eeg_reference(ref_channels="average")
+    raw_avg_ref = raw_filtered.set_eeg_reference(ref_channels="average")
 
-raw_avg_ref.load_data()
+    raw_avg_ref.load_data()
 
-#filtering just for ICA
-filt_ica_raw = raw_avg_ref.copy().filter(l_freq=1., h_freq=None)
+    #filtering just for ICA
+    filt_ica_raw = raw_avg_ref.copy().filter(l_freq=1., h_freq=None)
 
-ica = mne.preprocessing.ICA(n_components=20)
-ica.fit(filt_ica_raw)
+    ica = mne.preprocessing.ICA(n_components=20)
+    ica.fit(filt_ica_raw)
 
-ica.plot_sources(raw_avg_ref)
-plt.show()
+    ica.plot_sources(raw_avg_ref)
+    plt.show()
 
-# input_str = input('exclude components:')
-# exclude_list = input_str.split(",")
-# if exclude_list[0] != '':
-#     for j in range(0,len(exclude_list)):
-#         exclude_list[j] = int(exclude_list[j])
+    # input_str = input('exclude components:')
+    # exclude_list = input_str.split(",")
+    # if exclude_list[0] != '':
+    #     for j in range(0,len(exclude_list)):
+    #         exclude_list[j] = int(exclude_list[j])
 
-# ica.exclude = exclude_list
+    # ica.exclude = exclude_list
 
-eog_indices, scores = ica.find_bads_eog(raw_avg_ref, ch_name=['Fp1','Fp2'])
-ica.exclude.extend(eog_indices)
+    eog_indices, scores = ica.find_bads_eog(raw_avg_ref, ch_name=['Fp1','Fp2'])
+    ica.exclude.extend(eog_indices)
 
-print(ica.exclude)
-raw_icaed = ica.apply(raw_avg_ref)
+    print(ica.exclude)
+    raw_icaed = ica.apply(raw_avg_ref)
 
-eeg_processed = raw_icaed.get_data()
+    eeg_processed = raw_icaed.get_data()
 
 
-#fnirs
-hbo_raw = mne.io.RawArray(data=hbo, info=fnirs_info)
-hbr_raw = mne.io.RawArray(data=hbr, info=fnirs_info)
+    #fnirs
+    hbo_raw = mne.io.RawArray(data=hbo, info=fnirs_info)
+    hbr_raw = mne.io.RawArray(data=hbr, info=fnirs_info)
 
-hbo_filtered = hbo_raw.filter(0.01, 0.1, method='iir', iir_params=dict(order=6, ftype='butter'))
-hbr_filtered = hbr_raw.filter(0.01, 0.1, method='iir', iir_params=dict(order=6, ftype='butter'))
+    hbo_filtered = hbo_raw.filter(0.01, 0.1, method='iir', iir_params=dict(order=6, ftype='butter'))
+    hbr_filtered = hbr_raw.filter(0.01, 0.1, method='iir', iir_params=dict(order=6, ftype='butter'))
 
-hbo_processed = hbo_filtered.get_data()
-hbr_processed = hbr_filtered.get_data()
+    hbo_processed = hbo_filtered.get_data()
+    hbr_processed = hbr_filtered.get_data()
 
-save_dict = {
-    'eeg':eeg_processed,
-    'eeg_time':eeg_time,
-    'hbo':hbo_processed,
-    'hbr':hbr_processed,
-    'fnirs_time':fnirs_time,
-    'label':label
-}
+    save_dict = {
+        'eeg':eeg_processed,
+        'eeg_time':eeg_time,
+        'hbo':hbo_processed,
+        'hbr':hbr_processed,
+        'fnirs_time':fnirs_time,
+        'label':label
+    }
 
-save_dir = r'data/preprocessed'
-save_name = subject_no
+    save_dir = r'data/preprocessed'
+    save_name = subject_no
 
-os.makedirs(save_dir, exist_ok=True)
-np.savez(os.path.join(save_dir,save_name),**save_dict)
-print('\n==============save {} success=============\n'.format(save_name))
+    os.makedirs(save_dir, exist_ok=True)
+    np.savez(os.path.join(save_dir,save_name),**save_dict)
+    print('\n==============save {} success=============\n'.format(save_name))
 
