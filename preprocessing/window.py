@@ -1,7 +1,7 @@
 import numpy as np
 import os
 
-'''
+
 win_step = 1
 win_length = 3
 
@@ -62,7 +62,7 @@ for subject in subject_list:
 
     np.savez(os.path.join(save_dir,save_name),**save_dict)
     print('\n==============save {} success=============\n'.format(save_name)) 
-'''
+
 
 
 
