@@ -46,9 +46,10 @@ ica.plot_sources(raw_avg_ref)
 plt.show()
 
 input_str = input('exclude components:')
-exclude_list = input_str.split(" ")
-for j in range(0,len(exclude_list)):
-    exclude_list[j] = int(exclude_list[j])
+exclude_list = input_str.split(",")
+if exclude_list[0] != '':
+    for j in range(0,len(exclude_list)):
+        exclude_list[j] = int(exclude_list[j])
 
 ica.exclude = exclude_list
 print(ica.exclude)
