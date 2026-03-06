@@ -38,20 +38,23 @@ raw_avg_ref.load_data()
 #filtering just for ICA
 filt_ica_raw = raw_avg_ref.copy().filter(l_freq=1., h_freq=None)
 
-ica = mne.preprocessing.ICA(n_components=20)
+ica = mne.preprocessing.ICA(n_components=0.99)
 ica.fit(filt_ica_raw)
-ica
 
 ica.plot_sources(raw_avg_ref)
 plt.show()
 
-input_str = input('exclude components:')
-exclude_list = input_str.split(",")
-if exclude_list[0] != '':
-    for j in range(0,len(exclude_list)):
-        exclude_list[j] = int(exclude_list[j])
+# input_str = input('exclude components:')
+# exclude_list = input_str.split(",")
+# if exclude_list[0] != '':
+#     for j in range(0,len(exclude_list)):
+#         exclude_list[j] = int(exclude_list[j])
 
-ica.exclude = exclude_list
+# ica.exclude = exclude_list
+
+eog_indices, scores = ica.find_bads_eog(raw)
+ica.exclude.extend(eog_indices)
+
 print(ica.exclude)
 raw_icaed = ica.apply(raw_avg_ref)
 
