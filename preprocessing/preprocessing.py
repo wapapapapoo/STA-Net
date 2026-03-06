@@ -79,6 +79,7 @@ save_dict = {
 save_dir = r'data/preprocessed'
 save_name = subject_no
 
+os.makedirs(save_dir)
 np.savez(os.path.join(save_dir,save_name),**save_dict)
 print('\n==============save {} success=============\n'.format(save_name))
 
