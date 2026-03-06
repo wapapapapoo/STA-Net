@@ -1,3 +1,4 @@
+from joblib import Parallel, delayed
 import numpy as np
 from scipy.interpolate import griddata
 import os
@@ -90,7 +91,7 @@ n_epoch = 60
 subject_path = r'data/epoch'
 subject_list = os.listdir(subject_path)
 
-for subject in subject_list:
+def process(subject):
     with np.load(os.path.join(subject_path, subject)) as data:
         eeg = data['eeg']
         hbo = data['hbo']
@@ -220,3 +221,9 @@ for subject in subject_list:
     os.makedirs(save_dir, exist_ok=True)
     np.savez(os.path.join(save_dir,save_name),**save_dict)
     print('\n==============save {} success=============\n'.format(save_name))
+
+
+Parallel(n_jobs=32)(
+    delayed(process)(subject)
+    for subject in subject_list
+)
