@@ -13,7 +13,7 @@ fnirs_pre_onset = 5
 fnirs_post_onset = task_period + 12
 
 fnirs_chn_names = ['AF7','AFF5','AFp7','AF5h','AFp3','AFF3h','AF1','AFFz','AFpz','AF2','AFp4','FCC3','C3h','C5h','CCP3','CPP3','P3h','P5h','PPO3','AFF4h','AF6h','AFF6','AFp8','AF8','FCC4','C6h','C4h','CCP4','CPP4','P6h','P4h','PPO4','PPOz','PO1','PO2','POOz']
-fnirs_info = mne.create_info(ch_names=fnirs_chn_names, sfreq=10, ch_types='misc')
+fnirs_info = mne.create_info(ch_names=fnirs_chn_names, sfreq=10, ch_types='eeg')
 fnirs_info.set_montage('standard_1005')
 
 subject_path = r'data/preprocessed'
