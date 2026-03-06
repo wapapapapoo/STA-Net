@@ -16,7 +16,7 @@ fnirs_chn_names = ['AF7','AFF5','AFp7','AF5h','AFp3','AFF3h','AF1','AFFz','AFpz'
 fnirs_info = mne.create_info(ch_names=fnirs_chn_names, sfreq=10, ch_types='eeg')
 fnirs_info.set_montage('standard_1005')
 
-subject_path = r'data/review/new_dataset/preprocessed'
+subject_path = r'data/preprocessed'
 subject_list = os.listdir(subject_path)
 
 for subject in subject_list:
@@ -68,7 +68,7 @@ for subject in subject_list:
         'label':label
     }
 
-    save_dir = r'data/review/new_dataset/epoch'
+    save_dir = r'data/epoch'
     save_name = subject
 
     np.savez(os.path.join(save_dir,save_name),**save_dict)

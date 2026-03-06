@@ -87,7 +87,7 @@ unknown_fnirs_point_coordinates = unknown_fnirs_point_coordinates.astype(float)
 
 n_epoch = 60
 
-subject_path = r'data/review/new_dataset/epoch'
+subject_path = r'data/epoch'
 subject_list = os.listdir(subject_path)
 
 for subject in subject_list:
@@ -214,7 +214,7 @@ for subject in subject_list:
             'label':label
         }
     
-    save_dir = r'data/review/new_dataset/d3'
+    save_dir = r'data/d3'
     save_name = subject
 
     np.savez(os.path.join(save_dir,save_name),**save_dict)

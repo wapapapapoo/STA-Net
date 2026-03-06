@@ -16,7 +16,7 @@ fnirs_info.set_montage('standard_1005')
 
 # begin preprocess
 subject_no = 'VP026'
-with np.load(r'data/review/new_dataset/mat2array/{}.npz'.format(subject_no)) as data:
+with np.load(r'data/mat2array/{}.npz'.format(subject_no)) as data:
     eeg = data['eeg']
     eeg_time = data['eeg_time']
     hbo = data['hbo']
@@ -76,7 +76,7 @@ save_dict = {
     'label':label
 }
 
-save_dir = r'data/review/new_dataset/preprocessed'
+save_dir = r'data/preprocessed'
 save_name = subject_no
 
 np.savez(os.path.join(save_dir,save_name),**save_dict)
