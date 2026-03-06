@@ -167,7 +167,15 @@ class conv_block(keras.layers.Layer):
         self.eeg_act = layers.Activation('elu')
         self.eeg_bn = layers.BatchNormalization()
 
-        self.fnirs_conv = layers.Conv3D(filters=fnirs_filter, kernel_size=fnirs_size, strides=fnirs_stride, padding=padding)
+        # self.fnirs_conv = layers.Conv3D(filters=fnirs_filter, kernel_size=fnirs_size, strides=fnirs_stride, padding=padding)
+        self.fnirs_conv = layers.TimeDistributed(
+            layers.Conv3D(
+                filters=fnirs_filter,
+                kernel_size=fnirs_size,
+                strides=fnirs_stride,
+                padding=padding
+            )
+        )
         self.fnirs_act = layers.Activation('elu')
         self.fnirs_bn = layers.BatchNormalization()
 
