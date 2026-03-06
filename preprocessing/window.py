@@ -11,7 +11,7 @@ fnirs_segments_number = 22
 eeg_srate = 200
 fnirs_srate = 10
 
-subject_path = r'E:\IF\review\new_dataset\d3'
+subject_path = r'data/review/new_dataset/d3'
 subject_list = os.listdir(subject_path)
 
 for subject in subject_list:
@@ -57,7 +57,7 @@ for subject in subject_list:
     'label':label
     }
 
-    save_dir = r'E:\IF\review\new_dataset\window'
+    save_dir = r'data/review/new_dataset/window'
     save_name = subject
 
     np.savez(os.path.join(save_dir,save_name),**save_dict)
@@ -68,7 +68,7 @@ for subject in subject_list:
 
 fnirs_lag_length = 11 # with t-self
 
-subject_path = r'E:\IF\review\new_dataset\window'
+subject_path = r'data/review/new_dataset/window'
 subject_list = os.listdir(subject_path)
 
 for subject in subject_list:
@@ -114,7 +114,7 @@ for subject in subject_list:
     'label':label_input
     }
 
-    save_dir = r'E:\IF\review\new_dataset\model_input'
+    save_dir = r'data/review/new_dataset/model_input'
     save_name = subject
 
     np.savez(os.path.join(save_dir,save_name),**save_dict)

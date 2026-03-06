@@ -20,7 +20,7 @@ class targetacccallback(keras.callbacks.Callback):
             self.model.stop_training = True
 
 
-subject_path = r'E:\IF\dataset\model_input'
+subject_path = r'data/dataset/model_input'
 subject_list = os.listdir(subject_path)
 
 for subject in subject_list:
