@@ -97,7 +97,18 @@ for subject in subject_list:
         tf.keras.backend.clear_session()
         model = sta_net()
 
-        model.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['accuracy'])
+        # model.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['accuracy'])
+        model.compile(
+            optimizer='adam',
+            loss={
+                "class_output": "categorical_crossentropy",
+                "eeg_output": "categorical_crossentropy"
+            },
+            metrics={
+                "class_output": "accuracy",
+                "eeg_output": "accuracy"
+            }
+        )
 
         stopping = tf.keras.callbacks.EarlyStopping(monitor='val_class_output_loss', patience=50, restore_best_weights=True, verbose=1)
 
