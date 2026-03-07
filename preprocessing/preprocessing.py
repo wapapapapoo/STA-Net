@@ -61,8 +61,8 @@ for subject_no in subject_list:
 
     # ica.exclude = exclude_list
 
-    eog_indices, scores = ica.find_bads_eog(raw_avg_ref, ch_name=['Fp1','Fp2'])
-    ica.exclude.extend(eog_indices)
+    # eog_indices, scores = ica.find_bads_eog(raw_avg_ref, ch_name=['Fp1','Fp2'])
+    # ica.exclude.extend(eog_indices)
 
     print(ica.exclude)
     raw_icaed = ica.apply(raw_avg_ref)

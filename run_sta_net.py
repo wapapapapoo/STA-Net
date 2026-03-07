@@ -137,7 +137,3 @@ for subject in subject_list:
     
 
 print('all done')
-
-            
-
-        
