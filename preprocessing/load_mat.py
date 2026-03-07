@@ -4,18 +4,29 @@ import os
 
 subject_list = []
 
-folder_path = r'data/olddataset/EEG_01-26'
+# ===== base paths on server =====
+BASE_DIR = '/home/libiao/sta/olddataset'
+EEG_DIR = os.path.join(BASE_DIR, 'EEG_01-26')
+NIRS_DIR = os.path.join(BASE_DIR, 'NIRS_01-26')
+
+# output directory for step0 (mat -> npz)
+OUT_DIR = '/home/libiao/sta/STA-Net-work/data/step0_mat2array'
+os.makedirs(OUT_DIR, exist_ok=True)
+
+# list subjects from EEG directory
+folder_path = EEG_DIR
+
 for filename in os.listdir(folder_path):
     subject_no = filename.split('-')[0]
 
     subject_list.append(subject_no)
 
 for name in subject_list:
-    eeg_data = io.loadmat(r'data/olddataset/EEG_01-26/{}-EEG/cnt_wg.mat'.format(name))
-    eeg_mrk_data = io.loadmat(r'data/olddataset/EEG_01-26/{}-EEG/mrk_wg.mat'.format(name))
+    eeg_data = io.loadmat(os.path.join(EEG_DIR, f'{name}-EEG', 'cnt_wg.mat'))
+    eeg_mrk_data = io.loadmat(os.path.join(EEG_DIR, f'{name}-EEG', 'mrk_wg.mat'))
 
-    fnirs_data = io.loadmat(r'data/olddataset/NIRS_01-26/{}-NIRS/cnt_wg.mat'.format(name))
-    fnirs_mrk_data = io.loadmat(r'data/olddataset/NIRS_01-26/{}-NIRS/mrk_wg.mat'.format(name))
+    fnirs_data = io.loadmat(os.path.join(NIRS_DIR, f'{name}-NIRS', 'cnt_wg.mat'))
+    fnirs_mrk_data = io.loadmat(os.path.join(NIRS_DIR, f'{name}-NIRS', 'mrk_wg.mat'))
 
     eeg = eeg_data['cnt_wg'][0,0][3].T
     eeg_time = eeg_mrk_data['mrk_wg'][0,0][0]
@@ -44,12 +55,12 @@ for name in subject_list:
         'label':label
     }
 
-    save_dir = r'data/mat2array'
+    save_dir = OUT_DIR
     save_name = name
 
-    os.makedirs(save_dir, exist_ok=True)
-    np.savez(os.path.join(save_dir,save_name),**save_dict)
-    print('\n==============save {} success=============\n'.format(save_name))
+    np.savez(os.path.join(save_dir, save_name), **save_dict)
+
+    print('\n==============save {} success!=============\n'.format(save_name))
 
 
 

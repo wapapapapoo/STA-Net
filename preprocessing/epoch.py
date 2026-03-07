@@ -16,8 +16,9 @@ fnirs_chn_names = ['AF7','AFF5','AFp7','AF5h','AFp3','AFF3h','AF1','AFFz','AFpz'
 fnirs_info = mne.create_info(ch_names=fnirs_chn_names, sfreq=10, ch_types='eeg')
 fnirs_info.set_montage('standard_1005')
 
-subject_path = r'data/preprocessed'
-subject_list = os.listdir(subject_path)
+BASE_DIR = '/home/libiao/sta/STA-Net-work/data'
+subject_path = os.path.join(BASE_DIR, 'step1_preprocessed')
+subject_list = sorted([f for f in os.listdir(subject_path) if f.endswith('.npz')])
 
 for subject in subject_list:
     with np.load(os.path.join(subject_path,subject)) as data:
@@ -68,10 +69,10 @@ for subject in subject_list:
         'label':label
     }
 
-    save_dir = r'data/epoch'
+    save_dir = os.path.join(BASE_DIR, 'step2_epoch')
+    os.makedirs(save_dir, exist_ok=True)
     save_name = subject
 
-    os.makedirs(save_dir, exist_ok=True)
     np.savez(os.path.join(save_dir,save_name),**save_dict)
     print('\n==============save {} success=============\n'.format(save_name))
 

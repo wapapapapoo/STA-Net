@@ -1,4 +1,3 @@
-from joblib import Parallel, delayed
 import numpy as np
 from scipy.interpolate import griddata
 import os
@@ -88,10 +87,11 @@ unknown_fnirs_point_coordinates = unknown_fnirs_point_coordinates.astype(float)
 
 n_epoch = 60
 
-subject_path = r'data/epoch'
-subject_list = os.listdir(subject_path)
+BASE_DIR = '/home/libiao/sta/STA-Net-work/data'
+subject_path = os.path.join(BASE_DIR, 'step2_epoch')
+subject_list = sorted([f for f in os.listdir(subject_path) if f.endswith('.npz')])
 
-def process(subject):
+for subject in subject_list:
     with np.load(os.path.join(subject_path, subject)) as data:
         eeg = data['eeg']
         hbo = data['hbo']
@@ -215,15 +215,9 @@ def process(subject):
             'label':label
         }
     
-    save_dir = r'data/d3'
+    save_dir = os.path.join(BASE_DIR, 'step3_3d')
+    os.makedirs(save_dir, exist_ok=True)
     save_name = subject
 
-    os.makedirs(save_dir, exist_ok=True)
     np.savez(os.path.join(save_dir,save_name),**save_dict)
     print('\n==============save {} success=============\n'.format(save_name))
-
-
-Parallel(n_jobs=32)(
-    delayed(process)(subject)
-    for subject in subject_list
-)
