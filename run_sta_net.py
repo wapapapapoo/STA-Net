@@ -110,7 +110,14 @@ for subject in subject_list:
             }
         )
 
-        stopping = tf.keras.callbacks.EarlyStopping(monitor='val_class_output_loss', patience=50, restore_best_weights=True, verbose=1)
+        # stopping = tf.keras.callbacks.EarlyStopping(monitor='val_class_output_loss', patience=50, restore_best_weights=True, verbose=1)
+        stopping = tf.keras.callbacks.EarlyStopping(
+            monitor='val_class_output_loss',
+            patience=50,
+            restore_best_weights=True,
+            mode='min',
+            verbose=1
+        )
 
         print('begin first train')
         first_history = model.fit(first_train_dataset, epochs = 300, 
