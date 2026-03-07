@@ -108,7 +108,15 @@ class fga(keras.layers.Layer):
     def __init__(self, tem_kernel_size, fga_loss_name):
         super(fga, self).__init__()
 
-        self.channel_pooling = layers.Conv3D(filters=1, kernel_size=(3, 3, tem_kernel_size), strides=(1, 1, 1), padding='same')
+        # self.channel_pooling = layers.Conv3D(filters=1, kernel_size=(3, 3, tem_kernel_size), strides=(1, 1, 1), padding='same')
+        self.channel_pooling = layers.TimeDistributed(
+            layers.Conv3D(
+                filters=1,
+                kernel_size=(3, 3, tem_kernel_size),
+                strides=(1, 1, 1),
+                padding='same'
+            )
+        )
 
         self.tap_fnirs = gap()
 
@@ -177,7 +185,8 @@ class conv_block(keras.layers.Layer):
             )
         )
         self.fnirs_act = layers.Activation('elu')
-        self.fnirs_bn = layers.BatchNormalization()
+        # self.fnirs_bn = layers.BatchNormalization()
+        self.fnirs_bn = layers.TimeDistributed(layers.BatchNormalization())
 
         self.eegfusion_conv = layers.Conv3D(filters=eegfusion_filter, kernel_size=eegfusion_size, strides=eegfusion_stride, padding=padding)
         self.eegfusion_act = layers.Activation('elu')
