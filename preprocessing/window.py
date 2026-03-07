@@ -4,10 +4,10 @@ import os
 # =========================
 # Paths (server)
 # =========================
-BASE_DIR = '/home/libiao/sta/STA-Net-work/data'
-D3_DIR = os.path.join(BASE_DIR, 'step3_3d')              # input of step4
-WINDOW_DIR = os.path.join(BASE_DIR, 'step4_window')      # output of step4 / input of step5
-MODEL_INPUT_DIR = os.path.join(BASE_DIR, 'step5_model_input')  # output of step5
+BASE_DIR = 'data'
+D3_DIR = os.path.join(BASE_DIR, 'd3')              # input of step4
+WINDOW_DIR = os.path.join(BASE_DIR, 'window')      # output of step4 / input of step5
+MODEL_INPUT_DIR = os.path.join(BASE_DIR, 'model_input')  # output of step5
 
 os.makedirs(WINDOW_DIR, exist_ok=True)
 os.makedirs(MODEL_INPUT_DIR, exist_ok=True)

@@ -5,12 +5,12 @@ import os
 subject_list = []
 
 # ===== base paths on server =====
-BASE_DIR = '/home/libiao/sta/olddataset'
+BASE_DIR = 'data/olddataset'
 EEG_DIR = os.path.join(BASE_DIR, 'EEG_01-26')
 NIRS_DIR = os.path.join(BASE_DIR, 'NIRS_01-26')
 
 # output directory for step0 (mat -> npz)
-OUT_DIR = '/home/libiao/sta/STA-Net-work/data/step0_mat2array'
+OUT_DIR = 'data/mat2array'
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # list subjects from EEG directory

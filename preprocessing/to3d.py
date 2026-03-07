@@ -87,8 +87,8 @@ unknown_fnirs_point_coordinates = unknown_fnirs_point_coordinates.astype(float)
 
 n_epoch = 60
 
-BASE_DIR = '/home/libiao/sta/STA-Net-work/data'
-subject_path = os.path.join(BASE_DIR, 'step2_epoch')
+BASE_DIR = 'data'
+subject_path = os.path.join(BASE_DIR, 'epoch')
 subject_list = sorted([f for f in os.listdir(subject_path) if f.endswith('.npz')])
 
 for subject in subject_list:
@@ -215,7 +215,7 @@ for subject in subject_list:
             'label':label
         }
     
-    save_dir = os.path.join(BASE_DIR, 'step3_3d')
+    save_dir = os.path.join(BASE_DIR, 'd3')
     os.makedirs(save_dir, exist_ok=True)
     save_name = subject
 

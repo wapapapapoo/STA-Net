@@ -6,9 +6,9 @@ import matplotlib.pyplot as plt  # 保留导入以尽量贴近原脚本（但不
 # =========================
 # Paths (server)
 # =========================
-BASE_DIR = '/home/libiao/sta/STA-Net-work/data'
-IN_DIR = os.path.join(BASE_DIR, 'step0_mat2array')
-OUT_DIR = os.path.join(BASE_DIR, 'step1_preprocessed')
+BASE_DIR = 'data'
+IN_DIR = os.path.join(BASE_DIR, 'mat2array')
+OUT_DIR = os.path.join(BASE_DIR, 'preprocessed')
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # =========================
