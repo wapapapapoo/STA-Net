@@ -1,3 +1,4 @@
+from joblib import Parallel, delayed
 import numpy as np
 import os
 
@@ -27,7 +28,7 @@ fnirs_srate = 10
 
 subject_list = sorted([f for f in os.listdir(D3_DIR) if f.endswith('.npz')])
 
-for subject in subject_list:
+def process1(subject):
     with np.load(os.path.join(D3_DIR, subject)) as data:
         eeg = data['eeg']
         hbo = data['hbo']
@@ -67,6 +68,13 @@ for subject in subject_list:
     np.savez(os.path.join(WINDOW_DIR, subject), **save_dict)
     print(f'\n==============save window {subject} success=============\n')
 
+
+Parallel(n_jobs=32)(
+    delayed(process1)(subject)
+    for subject in subject_list
+)
+
+
 # =========================
 # Step5: build model_input (EGTA lag)
 # (original code, just paths changed)
@@ -75,7 +83,8 @@ fnirs_lag_length = 11  # with t-self
 
 subject_list = sorted([f for f in os.listdir(WINDOW_DIR) if f.endswith('.npz')])
 
-for subject in subject_list:
+
+def process2(subject):
     with np.load(os.path.join(WINDOW_DIR, subject)) as data:
         eeg = data['eeg']
         hbo = data['hbo']
@@ -118,3 +127,8 @@ for subject in subject_list:
     np.savez(os.path.join(MODEL_INPUT_DIR, subject), **save_dict)
     print(f'\n==============save model_input {subject} success=============\n')
 
+
+Parallel(n_jobs=32)(
+    delayed(process2)(subject)
+    for subject in subject_list
+)

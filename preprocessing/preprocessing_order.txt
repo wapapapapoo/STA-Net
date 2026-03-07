@@ -1,1 +1,1 @@
-load_mat-preprocessing-epoch-to3d-window
+python preprocessing/load_mat.py && python preprocessing/preprocessing.py && python preprocessing/epoch.py && python preprocessing/to3d.py && python preprocessing/window.py
