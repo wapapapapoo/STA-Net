@@ -71,7 +71,9 @@ for subject_no in subject_list:
     ica = mne.preprocessing.ICA(n_components=20)
     ica.fit(filt_ica_raw)
 
+    ica.plot_components()
     ica.plot_sources(raw_avg_ref)
+    ica.plot_properties(raw_avg_ref)
     plt.show()
 
     input_str = input('exclude components:')

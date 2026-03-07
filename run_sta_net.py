@@ -113,7 +113,7 @@ for subject in subject_list:
         # stopping = tf.keras.callbacks.EarlyStopping(monitor='val_class_output_loss', patience=50, restore_best_weights=True, verbose=1)
         stopping = tf.keras.callbacks.EarlyStopping(
             monitor='val_class_output_loss',
-            patience=50,
+            patience=100,
             restore_best_weights=True,
             mode='min',
             verbose=1
