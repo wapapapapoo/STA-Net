@@ -75,7 +75,7 @@ for subject_no in subject_list:
     ica = mne.preprocessing.ICA(n_components=20)
     ica.fit(filt_ica_raw)
 
-    labels = label_components(raw_avg_ref, ica)
+    labels = label_components(raw_avg_ref, ica, "iclabel")
 
     exclude = [
         i for i, label in enumerate(labels["labels"])
