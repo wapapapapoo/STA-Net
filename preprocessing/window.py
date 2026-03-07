@@ -27,6 +27,7 @@ eeg_srate = 200
 fnirs_srate = 10
 
 subject_list = sorted([f for f in os.listdir(D3_DIR) if f.endswith('.npz')])
+subject_list.sort()
 
 def process1(subject):
     with np.load(os.path.join(D3_DIR, subject)) as data:

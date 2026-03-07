@@ -21,6 +21,8 @@ for filename in os.listdir(folder_path):
 
     subject_list.append(subject_no)
 
+subject_list.sort()
+
 for name in subject_list:
     eeg_data = io.loadmat(os.path.join(EEG_DIR, f'{name}-EEG', 'cnt_wg.mat'))
     eeg_mrk_data = io.loadmat(os.path.join(EEG_DIR, f'{name}-EEG', 'mrk_wg.mat'))

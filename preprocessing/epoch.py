@@ -19,6 +19,7 @@ fnirs_info.set_montage('standard_1005')
 BASE_DIR = 'data'
 subject_path = os.path.join(BASE_DIR, 'preprocessed')
 subject_list = sorted([f for f in os.listdir(subject_path) if f.endswith('.npz')])
+subject_list.sort()
 
 for subject in subject_list:
     with np.load(os.path.join(subject_path,subject)) as data:

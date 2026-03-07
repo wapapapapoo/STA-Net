@@ -38,6 +38,7 @@ fnirs_info.set_montage('standard_1005')
 # Subjects
 # =========================
 subject_list = sorted([f[:-4] for f in os.listdir(IN_DIR) if f.endswith('.npz')])
+subject_list.sort()
 print(f'Found {len(subject_list)} subjects in {IN_DIR}')
 
 for subject_no in subject_list:

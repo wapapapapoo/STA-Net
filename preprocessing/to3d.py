@@ -91,6 +91,7 @@ n_epoch = 60
 BASE_DIR = 'data'
 subject_path = os.path.join(BASE_DIR, 'epoch')
 subject_list = sorted([f for f in os.listdir(subject_path) if f.endswith('.npz')])
+subject_list.sort()
 
 def process(subject):
     with np.load(os.path.join(subject_path, subject)) as data:
