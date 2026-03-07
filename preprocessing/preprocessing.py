@@ -1,3 +1,4 @@
+from joblib import Parallel, delayed
 import numpy as np
 import os
 import mne
@@ -41,7 +42,7 @@ subject_list = sorted([f[:-4] for f in os.listdir(IN_DIR) if f.endswith('.npz')]
 subject_list.sort()
 print(f'Found {len(subject_list)} subjects in {IN_DIR}')
 
-for subject_no in subject_list:
+def process(subject_no):
     in_path = os.path.join(IN_DIR, f'{subject_no}.npz')
     with np.load(in_path) as data:
         eeg = data['eeg']
@@ -136,3 +137,9 @@ for subject_no in subject_list:
     out_path = os.path.join(OUT_DIR, f'{subject_no}.npz')
     np.savez(out_path, **save_dict)
     print(f'\n==============save {subject_no} success=============\n')
+
+
+Parallel(n_jobs=32)(
+    delayed(process)(subject_no)
+    for subject_no in subject_list
+)
