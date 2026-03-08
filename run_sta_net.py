@@ -140,7 +140,7 @@ for subject in subject_list:
         # test_results = model.evaluate(test_dataset)
     
         print('begin test')
-        test_results = model.evaluate(test_dataset, verbose=0)
+        test_results = model.evaluate(test_dataset, verbose=0, return_dict=True)
 
         print(f'\n\n{{"subject": "{subject}", "fold": {session}, "result": {{', end='')
 
