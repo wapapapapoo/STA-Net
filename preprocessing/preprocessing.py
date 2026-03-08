@@ -71,39 +71,39 @@ def process(subject_no):
 
 
 
-    from mne_icalabel import label_components
-
-    ica = mne.preprocessing.ICA(n_components=20)
-    ica.fit(filt_ica_raw)
-
-    labels = label_components(filt_ica_raw, ica, method="iclabel")
-
-    exclude = [
-        i for i, label in enumerate(labels["labels"])
-        if label in ["eye", "muscle", "heart", "line_noise", "channel_noise"]
-    ]
-
-    print("Auto exclude:", exclude)
-
-    ica.exclude = exclude
-    raw_icaed = ica.apply(raw_avg_ref)
+    # from mne_icalabel import label_components
 
     # ica = mne.preprocessing.ICA(n_components=20)
     # ica.fit(filt_ica_raw)
 
-    # ica.plot_components()
-    # ica.plot_sources(raw_avg_ref)
-    # ica.plot_properties(raw_avg_ref)
-    # plt.show()
+    # labels = label_components(filt_ica_raw, ica, method="iclabel")
 
-    # input_str = input('exclude components:')
-    # exclude_list = input_str.split(" ")
-    # for j in range(0, len(exclude_list)):
-    #     exclude_list[j] = int(exclude_list[j])
+    # exclude = [
+    #     i for i, label in enumerate(labels["labels"])
+    #     if label in ["eye", "muscle", "heart", "line_noise", "channel_noise"]
+    # ]
 
-    # ica.exclude = exclude_list
-    # print(ica.exclude)
+    # print("Auto exclude:", exclude)
+
+    # ica.exclude = exclude
     # raw_icaed = ica.apply(raw_avg_ref)
+
+    ica = mne.preprocessing.ICA(n_components=20)
+    ica.fit(filt_ica_raw)
+
+    ica.plot_components()
+    ica.plot_sources(raw_avg_ref)
+    ica.plot_properties(raw_avg_ref)
+    plt.show()
+
+    input_str = input('exclude components:')
+    exclude_list = input_str.split(" ")
+    for j in range(0, len(exclude_list)):
+        exclude_list[j] = int(exclude_list[j])
+
+    ica.exclude = exclude_list
+    print(ica.exclude)
+    raw_icaed = ica.apply(raw_avg_ref)
 
     eeg_processed = raw_icaed.get_data()
 
