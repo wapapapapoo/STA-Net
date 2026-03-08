@@ -135,8 +135,17 @@ for subject in subject_list:
         model.fit(second_train_dataset, epochs = 200, 
                 verbose = 2, callbacks=[targetacccallback(target_acc)])
         
-        print('begin test')
-        test_results = model.evaluate(test_dataset)
+        # print('begin test')
+        # test_results = model.evaluate(test_dataset)
     
+        print('begin test')
+        test_results = model.evaluate(test_dataset, verbose=0)
+
+        print(f"\n===== RESULT | Subject: {subject} | Fold: {session} =====")
+
+        for name, value in zip(model.metrics_names, test_results):
+            print(f"{name}: {value:.6f}")
+
+        print("============================================\n")
 
 print('all done')
