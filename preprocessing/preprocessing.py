@@ -99,6 +99,8 @@ def process(subject_no):
     ica.exclude = exclude
     raw_icaed = ica.apply(raw_avg_ref)
 
+    input('pause')
+
     # ica = mne.preprocessing.ICA(n_components=20)
     # ica.fit(filt_ica_raw)
 
