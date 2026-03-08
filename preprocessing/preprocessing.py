@@ -69,10 +69,10 @@ def process(subject_no):
     from mne_icalabel import label_components
 
     # ICA用1-100Hz
-    filt_ica_raw = raw_avg_ref.copy().filter(1., 45.)
+    filt_ica_raw = raw_avg_ref.copy().filter(1., None)
 
     ica = mne.preprocessing.ICA(
-        n_components=27,
+        n_components=20,
         method="infomax",
         fit_params=dict(extended=True),
         max_iter=1000,
@@ -87,7 +87,7 @@ def process(subject_no):
 
     exclude = [
         i for i, lab in enumerate(labels["labels"])
-        if lab != 'brain'
+        if lab not in ['brain', 'other']
     ]
 
     print("Auto exclude:", exclude)
