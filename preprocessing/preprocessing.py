@@ -85,13 +85,17 @@ def process(subject_no):
 
     print("IC labels:", labels["labels"])
 
-    probs = labels["y_pred_proba"]
-
-    brain_idx = 0
+    artifact_labels = [
+        "eye blink",
+        "muscle artifact",
+        "heart beat",
+        "line noise",
+        "channel noise"
+    ]
 
     exclude = [
-        i for i, p in enumerate(probs)
-        if p[brain_idx] < 0.5
+        i for i, lab in enumerate(labels["labels"])
+        if lab in artifact_labels
     ]
 
     print("Auto exclude:", exclude)
