@@ -25,6 +25,7 @@ class targetacccallback(keras.callbacks.Callback):
 
 subject_path = r'data/model_input'
 subject_list = os.listdir(subject_path)
+subject_list.sort()
 
 for subject in subject_list:
     with np.load(os.path.join(subject_path, subject)) as data:
