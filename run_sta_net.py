@@ -7,6 +7,9 @@ from keras import layers
 from keras.callbacks import ModelCheckpoint
 import os
 
+gpus = tf.config.list_physical_devices('GPU')
+for gpu in gpus:
+    tf.config.experimental.set_memory_growth(gpu, True)
 
 class targetacccallback(keras.callbacks.Callback):
     def __init__(self, target_acc):
