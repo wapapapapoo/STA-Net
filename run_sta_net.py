@@ -142,11 +142,14 @@ for subject in subject_list:
         print('begin test')
         test_results = model.evaluate(test_dataset, verbose=0, return_dict=True)
 
-        print(f'\n\n{{"subject": "{subject}", "fold": {session}, "result": {{', end='')
+        output_file = "results.txt"
 
-        for name, value in test_results.items():
-            print(f"\"{name}\": {value:.6f}, ", end='')
+        with open(output_file, "a") as f:
+            f.write(f'\n\n{{"subject": "{subject}", "fold": {session}, "result": {{')
 
-        print(f"}}, }}\n\n")
+            for name, value in test_results.items():
+                f.write(f"\"{name}\": {value:.6f}, ")
+
+            f.write(f"}}, }}\n\n")
 
 print('all done')
