@@ -145,11 +145,11 @@ for subject in subject_list:
         output_file = "results.txt"
 
         with open(output_file, "a") as f:
-            f.write(f'\n\n{{"subject": "{subject}", "fold": {session}, "result": {{')
+            f.write(f'{{"subject": "{subject}", "fold": {session}, "result": {{')
 
             for name, value in test_results.items():
                 f.write(f"\"{name}\": {value:.6f}, ")
 
-            f.write(f"}}, }}\n\n")
+            f.write(f"}}, }}\n")
 
 print('all done')
