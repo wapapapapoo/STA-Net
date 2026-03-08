@@ -72,7 +72,7 @@ def process(subject_no):
     filt_ica_raw = raw_avg_ref.copy().filter(1., 45.)
 
     ica = mne.preprocessing.ICA(
-        n_components=0.99,
+        n_components=20,
         method="infomax",
         fit_params=dict(extended=True),
         max_iter=1000,
