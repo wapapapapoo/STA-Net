@@ -85,17 +85,9 @@ def process(subject_no):
 
     print("IC labels:", labels["labels"])
 
-    artifact_labels = [
-        "eye blink",
-        "muscle artifact",
-        "heart beat",
-        "line noise",
-        "channel noise"
-    ]
-
     exclude = [
         i for i, lab in enumerate(labels["labels"])
-        if lab in artifact_labels
+        if lab != 'brain'
     ]
 
     print("Auto exclude:", exclude)
