@@ -139,7 +139,10 @@ def process(subject_no):
     print(f'\n==============save {subject_no} success=============\n')
 
 
-Parallel(n_jobs=32)(
-    delayed(process)(subject_no)
-    for subject_no in subject_list
-)
+# Parallel(n_jobs=32)(
+#     delayed(process)(subject_no)
+#     for subject_no in subject_list
+# )
+
+for subject_no in subject_list:
+    process(subject_no)
