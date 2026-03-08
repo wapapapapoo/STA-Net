@@ -142,11 +142,11 @@ for subject in subject_list:
         print('begin test')
         test_results = model.evaluate(test_dataset, verbose=0)
 
-        print(f'\n\n{{"subject": {subject}, "fold": {session}, "result": {{')
+        print(f'\n\n{{"subject": "{subject}", "fold": {session}, "result": {{', end='')
 
-        for name, value in zip(model.metrics_names, test_results):
+        for name, value in test_results.items():
             print(f"\"{name}\": {value:.6f}, ", end='')
 
-        print("}}, }}\n\n")
+        print(f"}}, }}\n\n")
 
 print('all done')
