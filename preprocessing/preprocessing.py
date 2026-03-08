@@ -66,37 +66,37 @@ def process(subject_no):
     raw_avg_ref = raw_filtered.set_eeg_reference(ref_channels="average")
     raw_avg_ref.load_data()
 
-    # filtering just for ICA (保留原逻辑)
-    filt_ica_raw = raw_avg_ref.copy().filter(l_freq=1., h_freq=None)
-
-
-
     from mne_icalabel import label_components
 
-    ica = mne.preprocessing.ICA(n_components=27)
+    # ICA用1-100Hz
+    filt_ica_raw = raw_avg_ref.copy().filter(1., 100.)
+
+    ica = mne.preprocessing.ICA(
+        n_components=0.99,
+        method="infomax",
+        fit_params=dict(extended=True),
+        random_state=97
+    )
+
     ica.fit(filt_ica_raw)
 
     labels = label_components(filt_ica_raw, ica, method="iclabel")
 
-    # exclude = [
-    #     i for i, label in enumerate(labels["labels"])
-    #     if label in ["eye", "muscle", "heart", "line_noise", "channel_noise"]
-    # ]
+    print("IC labels:", labels["labels"])
 
     probs = labels["y_pred_proba"]
-    classes = labels["classes"]
 
-    brain_idx = classes.index("brain")
+    brain_idx = 0
 
     exclude = [
         i for i, p in enumerate(probs)
         if p[brain_idx] < 0.5
     ]
 
-    print(labels["labels"])
     print("Auto exclude:", exclude)
 
     ica.exclude = exclude
+
     raw_icaed = ica.apply(raw_avg_ref)
 
     input('pause')
