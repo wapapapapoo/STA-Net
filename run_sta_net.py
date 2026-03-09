@@ -124,7 +124,7 @@ for subject in subject_list:
         )
 
         print('begin first train')
-        first_history = model.fit(first_train_dataset, epochs = 300, 
+        first_history = model.fit(first_train_dataset, epochs = 50, 
                 verbose = 2, validation_data=val_dataset,
                 callbacks=[stopping])
         
@@ -134,7 +134,7 @@ for subject in subject_list:
 
         print('begin second train')
         best_epoch = min_val_class_output_loss_epoch + 1 
-        model.fit(second_train_dataset, epochs = best_epoch, 
+        model.fit(second_train_dataset, epochs = 50, 
                 verbose = 2, )#callbacks=[targetacccallback(target_acc)])
         
         # print('begin test')
