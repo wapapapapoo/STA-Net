@@ -123,19 +123,19 @@ for subject in subject_list:
             verbose=1
         )
 
-        print('begin first train')
-        first_history = model.fit(first_train_dataset, epochs = 50, 
-                verbose = 2, validation_data=val_dataset,
-                callbacks=[stopping])
+        # print('begin first train')
+        # first_history = model.fit(first_train_dataset, epochs = 200,
+        #         verbose = 2, validation_data=val_dataset,)
+        #         #callbacks=[stopping])
         
-        min_val_class_output_loss = min(first_history.history['val_class_output_loss'])
-        min_val_class_output_loss_epoch = first_history.history['val_class_output_loss'].index(min_val_class_output_loss)
-        target_acc = first_history.history['class_output_loss'][min_val_class_output_loss_epoch]
+        # min_val_class_output_loss = min(first_history.history['val_class_output_loss'])
+        # min_val_class_output_loss_epoch = first_history.history['val_class_output_loss'].index(min_val_class_output_loss)
+        # target_acc = first_history.history['class_output_loss'][min_val_class_output_loss_epoch]
 
         print('begin second train')
-        best_epoch = min_val_class_output_loss_epoch + 1 
-        model.fit(second_train_dataset, epochs = 50, 
-                verbose = 2, )#callbacks=[targetacccallback(target_acc)])
+        # best_epoch = min_val_class_output_loss_epoch + 1 
+        model.fit(second_train_dataset, epochs = 300,
+                verbose = 2, callbacks=[stopping])#callbacks=[targetacccallback(target_acc)])
         
         # print('begin test')
         # test_results = model.evaluate(test_dataset)
