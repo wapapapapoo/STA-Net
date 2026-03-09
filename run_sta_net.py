@@ -133,8 +133,9 @@ for subject in subject_list:
         target_acc = first_history.history['class_output_loss'][min_val_class_output_loss_epoch]
 
         print('begin second train')
-        model.fit(second_train_dataset, epochs = 200, 
-                verbose = 2, callbacks=[targetacccallback(target_acc)])
+        best_epoch = min_val_class_output_loss_epoch + 1 
+        model.fit(second_train_dataset, epochs = best_epoch, 
+                verbose = 2, )#callbacks=[targetacccallback(target_acc)])
         
         # print('begin test')
         # test_results = model.evaluate(test_dataset)
