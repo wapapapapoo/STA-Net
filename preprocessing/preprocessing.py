@@ -83,11 +83,12 @@ def process(subject_no):
 
     labels = label_components(filt_ica_raw, ica, method="iclabel")
 
-    print("IC labels:", labels["labels"])
+    print(f"IC labels ({subject_no}): ", labels["labels"])
+    print(f"IC prob ({subject_no}): ", labels["y_pred_proba"])
 
     exclude = [
         i for i, lab in enumerate(labels["labels"])
-        if lab not in ['brain', 'other']
+        if lab not in ['brain']
     ]
 
     print("Auto exclude:", exclude)
