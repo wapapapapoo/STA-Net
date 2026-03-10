@@ -60,7 +60,7 @@ for subject in subject_list:
                 {"class_output": label_test, 'eeg_output':label_test} 
             )
         ) 
-        test_dataset = test_dataset.batch(32)
+        test_dataset = test_dataset.batch(64)
 
         np.random.seed(42)
         indices = np.random.choice(all_eeg.shape[0], size=80, replace=False)
@@ -74,7 +74,7 @@ for subject in subject_list:
                     {"class_output": label_train, 'eeg_output':label_train} 
                 )
             ) 
-        first_train_dataset = first_train_dataset.shuffle(buffer_size=128).batch(32)
+        first_train_dataset = first_train_dataset.shuffle(buffer_size=128).batch(64)
 
         eeg_val = all_eeg[indices]
         fnirs_val = all_fnirs[indices]
@@ -85,7 +85,7 @@ for subject in subject_list:
                 {"class_output": label_val, 'eeg_output':label_val} 
             )
         ) 
-        val_dataset = val_dataset.batch(32)
+        val_dataset = val_dataset.batch(64)
 
         print('eeg_train shape:', eeg_train.shape)
         print('fnirs_train shape:', fnirs_train.shape)
