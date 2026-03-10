@@ -27,7 +27,7 @@ subject_path = r'data/model_input'
 subject_list = os.listdir(subject_path)
 subject_list.sort()
 
-BS = 32
+BS = 8
 
 for subject in subject_list:
     with np.load(os.path.join(subject_path, subject)) as data:
@@ -115,9 +115,13 @@ for subject in subject_list:
         #     weight_decay=1e-4,
         #     clipnorm=1.0,
         # )
+        lr_schedule = tf.keras.optimizers.schedules.CosineDecay(
+            initial_learning_rate=1e-4,
+            decay_steps=2500
+        )
         optimizer = tf.keras.optimizers.AdamW(
-            learning_rate=1e-3,
-            weight_decay=5e-4,
+            learning_rate=lr_schedule,
+            weight_decay=3e-4,
             beta_1=0.9,
             beta_2=0.999,
             epsilon=1e-7,
@@ -131,7 +135,7 @@ for subject in subject_list:
             },
             loss_weights={
                 "class_output": 1.0,
-                "eeg_output": .3
+                "eeg_output": 0.3
             },
             metrics={
                 "class_output": "accuracy",
