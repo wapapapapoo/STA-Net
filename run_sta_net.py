@@ -27,7 +27,7 @@ subject_path = r'data/model_input'
 subject_list = os.listdir(subject_path)
 subject_list.sort()
 
-BS = 64
+BS = 8
 
 for subject in subject_list:
     with np.load(os.path.join(subject_path, subject)) as data:
@@ -51,7 +51,7 @@ for subject in subject_list:
                 {"class_output": all_label, 'eeg_output':all_label}
             )
         ) 
-        second_train_dataset = second_train_dataset.shuffle(buffer_size=600-(600//FOLD), reshuffle_each_iteration=True).batch(BS)
+        second_train_dataset = second_train_dataset.shuffle(buffer_size=600, reshuffle_each_iteration=True).batch(BS)
 
         eeg_test = eeg[session*(600//FOLD):(session+1)*(600//FOLD),]
         fnirs_test = fnirs[session*(600//FOLD):(session+1)*(600//FOLD),]
@@ -77,7 +77,7 @@ for subject in subject_list:
                     {"class_output": label_train, 'eeg_output':label_train} 
                 )
             ) 
-        first_train_dataset = first_train_dataset.shuffle(buffer_size=600-(600//FOLD), reshuffle_each_iteration=True).batch(BS)
+        first_train_dataset = first_train_dataset.shuffle(buffer_size=600, reshuffle_each_iteration=True).batch(BS)
 
         eeg_val = all_eeg[indices]
         fnirs_val = all_fnirs[indices]
@@ -104,26 +104,34 @@ for subject in subject_list:
         model = sta_net()
 
         # model.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['accuracy'])
-        lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
-            boundaries=[80, 140],
-            values=[3e-4, 1e-4, 3e-5]
-        )
-        optimizer = tf.keras.optimizers.SGD(
-            learning_rate=lr_schedule,
-            momentum=0.9,
-            nesterov=True,
-            weight_decay=1e-4,
-            clipnorm=1.0,
+        # lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
+        #     boundaries=[80, 140],
+        #     values=[3e-4, 1e-4, 3e-5]
+        # )
+        # optimizer = tf.keras.optimizers.SGD(
+        #     learning_rate=lr_schedule,
+        #     momentum=0.9,
+        #     nesterov=True,
+        #     weight_decay=1e-4,
+        #     clipnorm=1.0,
+        # )
+        optimizer = tf.keras.optimizers.AdamW(
+            learning_rate=3e-4,
+            weight_decay=5e-4,
+            beta_1=0.9,
+            beta_2=0.999,
+            epsilon=1e-7,
+            clipnorm=1.0
         )
         model.compile(
             optimizer=optimizer,
             loss={
-                "class_output": "categorical_crossentropy",
-                "eeg_output": "categorical_crossentropy"
+                "class_output": tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1),
+                "eeg_output": tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1)
             },
             loss_weights={
                 "class_output": 1.0,
-                "eeg_output": 0.3
+                # "eeg_output": 0.2
             },
             metrics={
                 "class_output": "accuracy",
