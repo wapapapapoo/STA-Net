@@ -27,7 +27,7 @@ subject_path = r'data/model_input'
 subject_list = os.listdir(subject_path)
 subject_list.sort()
 
-BS = 8
+BS = 4
 
 for subject in subject_list:
     with np.load(os.path.join(subject_path, subject)) as data:
@@ -39,7 +39,7 @@ for subject in subject_list:
 
     label = label.astype(float)
 
-    FOLD = 3
+    FOLD = 6
     for session in range(FOLD):
         all_eeg = np.delete(eeg, slice(session*(600//FOLD), (session+1)*(600//FOLD)), 0)
         all_fnirs = np.delete(fnirs, slice(session*(600//FOLD), (session+1)*(600//FOLD)), 0)
@@ -104,34 +104,22 @@ for subject in subject_list:
         model = sta_net()
 
         # model.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['accuracy'])
-        # lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
-        #     boundaries=[80, 140],
-        #     values=[3e-4, 1e-4, 3e-5]
-        # )
-        # optimizer = tf.keras.optimizers.SGD(
-        #     learning_rate=lr_schedule,
-        #     momentum=0.9,
-        #     nesterov=True,
-        #     weight_decay=1e-4,
-        #     clipnorm=1.0,
-        # )
-        lr_schedule = tf.keras.optimizers.schedules.CosineDecay(
-            initial_learning_rate=1e-4,
-            decay_steps=2500
+        lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
+            boundaries=[80, 140],
+            values=[3e-4, 1e-4, 3e-5]
         )
-        optimizer = tf.keras.optimizers.AdamW(
+        optimizer = tf.keras.optimizers.SGD(
             learning_rate=lr_schedule,
-            weight_decay=3e-4,
-            beta_1=0.9,
-            beta_2=0.999,
-            epsilon=1e-7,
-            clipnorm=1.0
+            momentum=0.9,
+            nesterov=True,
+            weight_decay=1e-4,
+            clipnorm=1.0,
         )
         model.compile(
             optimizer=optimizer,
             loss={
-                "class_output": tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1),
-                "eeg_output": tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1)
+                "class_output": "categorical_crossentropy",
+                "eeg_output": "categorical_crossentropy"
             },
             loss_weights={
                 "class_output": 1.0,
