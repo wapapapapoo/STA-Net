@@ -27,7 +27,7 @@ subject_path = r'data/model_input'
 subject_list = os.listdir(subject_path)
 subject_list.sort()
 
-BS = 400
+BS = 64
 
 for subject in subject_list:
     with np.load(os.path.join(subject_path, subject)) as data:
