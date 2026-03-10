@@ -48,7 +48,7 @@ for subject in subject_list:
                 {"class_output": all_label, 'eeg_output':all_label}
             )
         ) 
-        second_train_dataset = second_train_dataset.shuffle(buffer_size=128).batch(32)
+        second_train_dataset = second_train_dataset.shuffle(buffer_size=128).batch(16)
 
         eeg_test = eeg[session*200:(session+1)*200,]
         fnirs_test = fnirs[session*200:(session+1)*200,]
@@ -60,7 +60,7 @@ for subject in subject_list:
                 {"class_output": label_test, 'eeg_output':label_test} 
             )
         ) 
-        test_dataset = test_dataset.batch(64)
+        test_dataset = test_dataset.batch(16)
 
         np.random.seed(42)
         indices = np.random.choice(all_eeg.shape[0], size=80, replace=False)
@@ -74,7 +74,7 @@ for subject in subject_list:
                     {"class_output": label_train, 'eeg_output':label_train} 
                 )
             ) 
-        first_train_dataset = first_train_dataset.shuffle(buffer_size=128).batch(64)
+        first_train_dataset = first_train_dataset.shuffle(buffer_size=128).batch(16)
 
         eeg_val = all_eeg[indices]
         fnirs_val = all_fnirs[indices]
@@ -85,7 +85,7 @@ for subject in subject_list:
                 {"class_output": label_val, 'eeg_output':label_val} 
             )
         ) 
-        val_dataset = val_dataset.batch(64)
+        val_dataset = val_dataset.batch(16)
 
         print('eeg_train shape:', eeg_train.shape)
         print('fnirs_train shape:', fnirs_train.shape)
@@ -135,7 +135,7 @@ for subject in subject_list:
 
         print('begin second train')
         # best_epoch = min_val_class_output_loss_epoch + 1 
-        model.fit(second_train_dataset, epochs = 300,
+        model.fit(second_train_dataset, epochs = 200,
                 verbose = 2, validation_data=test_dataset)#callbacks=[targetacccallback(target_acc)])
         
         # print('begin test')
