@@ -131,7 +131,7 @@ for subject in subject_list:
             },
             loss_weights={
                 "class_output": 1.0,
-                "eeg_output": 0.
+                "eeg_output": 1.0
             },
             metrics={
                 "class_output": "accuracy",
