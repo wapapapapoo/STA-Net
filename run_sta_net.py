@@ -95,8 +95,7 @@ for subject in subject_list:
         # print('fnirs_val shape:', fnirs_val.shape)
         # print('label_val shape:', label_val.shape)
 
-        print(subject)
-        print(session)
+        print(f"# subject {subject}, session {session}")
 
         tf.keras.backend.clear_session()
         model = sta_net()
@@ -136,15 +135,15 @@ for subject in subject_list:
         # min_val_class_output_loss_epoch = first_history.history['val_class_output_loss'].index(min_val_class_output_loss)
         # target_acc = first_history.history['class_output_loss'][min_val_class_output_loss_epoch]
 
-        print('begin second train')
+        # print('begin second train')
         # best_epoch = min_val_class_output_loss_epoch + 1 
         model.fit(second_train_dataset, epochs = 200,
                 verbose = 2, validation_data=test_dataset)#callbacks=[targetacccallback(target_acc)])
         
         # print('begin test')
         # test_results = model.evaluate(test_dataset)
-    
-        print('begin test')
+
+        # print('begin test')
         test_results = model.evaluate(test_dataset, verbose=0, return_dict=True)
 
         output_file = "results.txt"
@@ -157,4 +156,4 @@ for subject in subject_list:
 
             f.write(f"}}, }}\n")
 
-print('all done')
+# print('all done')

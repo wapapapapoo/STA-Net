@@ -1,35 +1,52 @@
 import re
-import tensorflow as tf
+import os
+from torch.utils.tensorboard import SummaryWriter
 
 log_file = "train_cout.log"
-logdir = "tb_logs"
+tb_root = "tb_logs"
 
-writer = tf.summary.create_file_writer(logdir)
+os.makedirs(tb_root, exist_ok=True)
 
-epoch_pattern = re.compile(r"Epoch (\d+)/\d+")
-
-with open(log_file) as f:
-    lines = f.readlines()
-
+writer = None
 epoch = None
 
-for line in lines:
+with open(log_file) as f:
+    for line in f:
 
-    m = epoch_pattern.search(line)
-    if m:
-        epoch = int(m.group(1))
-        continue
+        # 新实验
+        if line.startswith("# subject"):
+            m = re.search(r"subject (.*), session (\d+)", line)
+            subject = m.group(1)
+            session = m.group(2)
 
-    if "step -" in line:
-        parts = line.strip().split(" - ")[-1].split(" - ")
+            run_name = f"{subject}_session{session}"
+            logdir = os.path.join(tb_root, run_name)
 
-        metrics = {}
-        for p in parts:
-            k, v = p.split(": ")
-            metrics[k] = float(v)
+            if writer:
+                writer.close()
 
-        with writer.as_default():
+            writer = SummaryWriter(logdir)
+            print("New run:", run_name)
+
+        # epoch
+        elif line.startswith("Epoch"):
+            epoch = int(line.split()[1].split("/")[0])
+
+        # metrics
+        elif " - " in line and "step" in line:
+            parts = line.strip().split(" - ")
+
+            metrics = {}
+            for p in parts:
+                if ":" in p:
+                    k, v = p.split(":")
+                    try:
+                        metrics[k.strip()] = float(v.strip())
+                    except:
+                        pass
+
             for k, v in metrics.items():
-                tf.summary.scalar(k, v, step=epoch)
+                writer.add_scalar(k, v, epoch)
 
-writer.close()
+if writer:
+    writer.close()
