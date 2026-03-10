@@ -135,7 +135,7 @@ for subject in subject_list:
         print('begin second train')
         # best_epoch = min_val_class_output_loss_epoch + 1 
         model.fit(second_train_dataset, epochs = 300,
-                verbose = 2, validation_data=test_dataset, callbacks=[stopping])#callbacks=[targetacccallback(target_acc)])
+                verbose = 2, validation_data=test_dataset)#callbacks=[targetacccallback(target_acc)])
         
         # print('begin test')
         # test_results = model.evaluate(test_dataset)
