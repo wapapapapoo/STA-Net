@@ -27,6 +27,8 @@ subject_path = r'data/model_input'
 subject_list = os.listdir(subject_path)
 subject_list.sort()
 
+BS = 400
+
 for subject in subject_list:
     with np.load(os.path.join(subject_path, subject)) as data:
         eeg = data['eeg']
@@ -48,7 +50,7 @@ for subject in subject_list:
                 {"class_output": all_label, 'eeg_output':all_label}
             )
         ) 
-        second_train_dataset = second_train_dataset.shuffle(buffer_size=128).batch(16)
+        second_train_dataset = second_train_dataset.shuffle(buffer_size=400, reshuffle_each_iteration=True).batch(BS)
 
         eeg_test = eeg[session*200:(session+1)*200,]
         fnirs_test = fnirs[session*200:(session+1)*200,]
@@ -60,7 +62,7 @@ for subject in subject_list:
                 {"class_output": label_test, 'eeg_output':label_test} 
             )
         ) 
-        test_dataset = test_dataset.batch(16)
+        test_dataset = test_dataset.batch(BS)
 
         np.random.seed(42)
         indices = np.random.choice(all_eeg.shape[0], size=80, replace=False)
@@ -74,7 +76,7 @@ for subject in subject_list:
                     {"class_output": label_train, 'eeg_output':label_train} 
                 )
             ) 
-        first_train_dataset = first_train_dataset.shuffle(buffer_size=128).batch(16)
+        first_train_dataset = first_train_dataset.shuffle(buffer_size=400, reshuffle_each_iteration=True).batch(BS)
 
         eeg_val = all_eeg[indices]
         fnirs_val = all_fnirs[indices]
@@ -85,7 +87,7 @@ for subject in subject_list:
                 {"class_output": label_val, 'eeg_output':label_val} 
             )
         ) 
-        val_dataset = val_dataset.batch(16)
+        val_dataset = val_dataset.batch(BS)
 
         # print('eeg_train shape:', eeg_train.shape)
         # print('fnirs_train shape:', fnirs_train.shape)
@@ -101,15 +103,26 @@ for subject in subject_list:
         model = sta_net()
 
         # model.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['accuracy'])
+        lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
+            boundaries=[80, 140],
+            values=[3e-4, 1e-4, 3e-5]
+        )
         optimizer = tf.keras.optimizers.SGD(
-            learning_rate=1e-2,
-            momentum=0.9
+            learning_rate=lr_schedule,
+            momentum=0.9,
+            nesterov=True,
+            weight_decay=1e-4,
+            clipnorm=1.0,
         )
         model.compile(
             optimizer=optimizer,
             loss={
                 "class_output": "categorical_crossentropy",
                 "eeg_output": "categorical_crossentropy"
+            },
+            loss_weights={
+                "class_output": 1.0,
+                "eeg_output": 0.3
             },
             metrics={
                 "class_output": "accuracy",
