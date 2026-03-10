@@ -19,7 +19,7 @@ class targetacccallback(keras.callbacks.Callback):
 
     def on_epoch_end(self, epoch, logs={}):
         if(logs['class_output_loss'] <= self.target_acc):
-            print("\nReached target loss value {} so cancelling training!\n".format(self.target_acc))
+            # print("\nReached target loss value {} so cancelling training!\n".format(self.target_acc))
             self.model.stop_training = True
 
 
@@ -87,13 +87,13 @@ for subject in subject_list:
         ) 
         val_dataset = val_dataset.batch(16)
 
-        print('eeg_train shape:', eeg_train.shape)
-        print('fnirs_train shape:', fnirs_train.shape)
-        print('label_train shape:', label_train.shape)
+        # print('eeg_train shape:', eeg_train.shape)
+        # print('fnirs_train shape:', fnirs_train.shape)
+        # print('label_train shape:', label_train.shape)
 
-        print('eeg_val shape:', eeg_val.shape)
-        print('fnirs_val shape:', fnirs_val.shape)
-        print('label_val shape:', label_val.shape)
+        # print('eeg_val shape:', eeg_val.shape)
+        # print('fnirs_val shape:', fnirs_val.shape)
+        # print('label_val shape:', label_val.shape)
 
         print(subject)
         print(session)
