@@ -102,8 +102,9 @@ for subject in subject_list:
         model = sta_net()
 
         # model.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['accuracy'])
+        optimizer = tf.keras.optimizers.Adam(learning_rate=1e-5)
         model.compile(
-            optimizer='adam',
+            optimizer=optimizer,
             loss={
                 "class_output": "categorical_crossentropy",
                 "eeg_output": "categorical_crossentropy"
