@@ -117,11 +117,11 @@ for subject in subject_list:
         # )
         optimizer = tf.keras.optimizers.AdamW(
             learning_rate=5e-3,
-            weight_decay=5e-4,
+            weight_decay=1e-3,
             beta_1=0.9,
-            beta_2=0.999,
-            epsilon=1e-7,
-            clipnorm=1.0
+            beta_2=0.99,
+            epsilon=1e-6,
+            clipnorm=0.5
         )
         model.compile(
             optimizer=optimizer,
