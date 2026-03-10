@@ -104,13 +104,12 @@ for subject in subject_list:
         model = sta_net()
 
         # model.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['accuracy'])
-        optimizer = tf.keras.optimizers.AdamW(
-            learning_rate=5e-3,
-            weight_decay=5e-4,
-            beta_1=0.9,
-            beta_2=0.999,
-            epsilon=1e-7,
-            clipnorm=1.0
+        optimizer = tf.keras.optimizers.SGD(
+            learning_rate=3e-4,
+            momentum=0.9,
+            nesterov=True,
+            weight_decay=1e-4,
+            clipnorm=1.0,
         )
         model.compile(
             optimizer=optimizer,
