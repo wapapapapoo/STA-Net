@@ -27,7 +27,7 @@ subject_path = r'data/model_input'
 subject_list = os.listdir(subject_path)
 subject_list.sort()
 
-BS = 16
+BS = 32
 
 for subject in subject_list:
     with np.load(os.path.join(subject_path, subject)) as data:
@@ -121,6 +121,8 @@ for subject in subject_list:
             beta_1=0.9,
             beta_2=0.999,
             epsilon=1e-7,
+            use_ema=True,
+            ema_momentum=0.999,
             clipnorm=1.0
         )
         model.compile(
