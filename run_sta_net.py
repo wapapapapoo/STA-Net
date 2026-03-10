@@ -27,7 +27,7 @@ subject_path = r'data/model_input'
 subject_list = os.listdir(subject_path)
 subject_list.sort()
 
-BS = 16
+BS = 32
 
 for subject in subject_list:
     with np.load(os.path.join(subject_path, subject)) as data:
@@ -116,8 +116,8 @@ for subject in subject_list:
         #     clipnorm=1.0,
         # )
         optimizer = tf.keras.optimizers.AdamW(
-            learning_rate=2e-3,
-            weight_decay=7e-4,
+            learning_rate=5e-3,
+            weight_decay=1e-3,
             beta_1=0.9,
             beta_2=0.999,
             epsilon=1e-7,
