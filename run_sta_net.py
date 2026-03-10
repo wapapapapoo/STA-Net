@@ -41,7 +41,7 @@ for subject in subject_list:
 
     label = label.astype(float)
 
-    FOLD = 3
+    FOLD = 6
     for session in range(FOLD):
         all_eeg = np.delete(eeg, slice(session*(600//FOLD), (session+1)*(600//FOLD)), 0)
         all_fnirs = np.delete(fnirs, slice(session*(600//FOLD), (session+1)*(600//FOLD)), 0)
