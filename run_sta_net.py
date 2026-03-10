@@ -27,7 +27,9 @@ subject_path = r'data/model_input'
 subject_list = os.listdir(subject_path)
 subject_list.sort()
 
-BS = 64
+BS = 32
+
+np.random.seed(42)
 
 for subject in subject_list:
     with np.load(os.path.join(subject_path, subject)) as data:
@@ -39,10 +41,11 @@ for subject in subject_list:
 
     label = label.astype(float)
 
-    for session in range(3):
-        all_eeg = np.delete(eeg, slice(session*200, (session+1)*200), 0)
-        all_fnirs = np.delete(fnirs, slice(session*200, (session+1)*200), 0)
-        all_label = np.delete(label, slice(session*200, (session+1)*200), 0)
+    FOLD = 3
+    for session in range(FOLD):
+        all_eeg = np.delete(eeg, slice(session*(600//FOLD), (session+1)*(600//FOLD)), 0)
+        all_fnirs = np.delete(fnirs, slice(session*(600//FOLD), (session+1)*(600//FOLD)), 0)
+        all_label = np.delete(label, slice(session*(600//FOLD), (session+1)*(600//FOLD)), 0)
 
         second_train_dataset = tf.data.Dataset.from_tensor_slices(
             (
@@ -50,11 +53,11 @@ for subject in subject_list:
                 {"class_output": all_label, 'eeg_output':all_label}
             )
         ) 
-        second_train_dataset = second_train_dataset.shuffle(buffer_size=400, reshuffle_each_iteration=True).batch(BS)
+        second_train_dataset = second_train_dataset.shuffle(buffer_size=600, reshuffle_each_iteration=True).batch(BS)
 
-        eeg_test = eeg[session*200:(session+1)*200,]
-        fnirs_test = fnirs[session*200:(session+1)*200,]
-        label_test = label[session*200:(session+1)*200,]
+        eeg_test = eeg[session*(600//FOLD):(session+1)*(600//FOLD),]
+        fnirs_test = fnirs[session*(600//FOLD):(session+1)*(600//FOLD),]
+        label_test = label[session*(600//FOLD):(session+1)*(600//FOLD),]
 
         test_dataset = tf.data.Dataset.from_tensor_slices(
             (
@@ -64,7 +67,6 @@ for subject in subject_list:
         ) 
         test_dataset = test_dataset.batch(BS)
 
-        np.random.seed(42)
         indices = np.random.choice(all_eeg.shape[0], size=80, replace=False)
 
         eeg_train = np.delete(all_eeg, indices, axis=0)
@@ -75,8 +77,8 @@ for subject in subject_list:
                     {"eeg_input": eeg_train, "fnirs_input": fnirs_train},
                     {"class_output": label_train, 'eeg_output':label_train} 
                 )
-            ) 
-        first_train_dataset = first_train_dataset.shuffle(buffer_size=400, reshuffle_each_iteration=True).batch(BS)
+            )
+        first_train_dataset = first_train_dataset.shuffle(buffer_size=600, reshuffle_each_iteration=True).batch(BS)
 
         eeg_val = all_eeg[indices]
         fnirs_val = all_fnirs[indices]
@@ -103,27 +105,27 @@ for subject in subject_list:
         model = sta_net()
 
         # model.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['accuracy'])
-        lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
-            boundaries=[80, 140],
-            values=[3e-4, 1e-4, 3e-5]
-        )
-        optimizer = tf.keras.optimizers.SGD(
-            learning_rate=lr_schedule,
-            momentum=0.9,
-            nesterov=True,
-            weight_decay=1e-4,
-            clipnorm=1.0,
-        )
+        # lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
+        #     boundaries=[80, 140],
+        #     values=[3e-4, 1e-4, 3e-5]
+        # )
+        # optimizer = tf.keras.optimizers.SGD(
+        #     learning_rate=lr_schedule,
+        #     momentum=0.9,
+        #     nesterov=True,
+        #     weight_decay=1e-4,
+        #     clipnorm=1.0,
+        # )
         model.compile(
-            optimizer=optimizer,
+            optimizer='Adam',
             loss={
                 "class_output": "categorical_crossentropy",
                 "eeg_output": "categorical_crossentropy"
             },
-            loss_weights={
-                "class_output": 1.0,
-                "eeg_output": 0.3
-            },
+            # loss_weights={
+            #     "class_output": 1.0,
+            #     "eeg_output": 0.3
+            # },
             metrics={
                 "class_output": "accuracy",
                 "eeg_output": "accuracy"
@@ -139,19 +141,19 @@ for subject in subject_list:
             verbose=1
         )
 
-        # print('begin first train')
-        # first_history = model.fit(first_train_dataset, epochs = 200,
-        #         verbose = 2, validation_data=val_dataset,)
-        #         #callbacks=[stopping])
+        print('# begin first train')
+        first_history = model.fit(first_train_dataset, epochs = 300,
+                verbose = 2, validation_data=val_dataset,
+                callbacks=[stopping])
         
-        # min_val_class_output_loss = min(first_history.history['val_class_output_loss'])
-        # min_val_class_output_loss_epoch = first_history.history['val_class_output_loss'].index(min_val_class_output_loss)
-        # target_acc = first_history.history['class_output_loss'][min_val_class_output_loss_epoch]
+        min_val_class_output_loss = min(first_history.history['val_class_output_loss'])
+        min_val_class_output_loss_epoch = first_history.history['val_class_output_loss'].index(min_val_class_output_loss)
+        target_acc = first_history.history['class_output_loss'][min_val_class_output_loss_epoch]
 
-        # print('begin second train')
+        print('# begin second train')
         # best_epoch = min_val_class_output_loss_epoch + 1 
         model.fit(second_train_dataset, epochs = 200,
-                verbose = 2, validation_data=test_dataset)#callbacks=[targetacccallback(target_acc)])
+                verbose = 2, callbacks=[targetacccallback(target_acc)])
         
         # print('begin test')
         # test_results = model.evaluate(test_dataset)
