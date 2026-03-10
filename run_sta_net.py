@@ -39,10 +39,11 @@ for subject in subject_list:
 
     label = label.astype(float)
 
-    for session in range(3):
-        all_eeg = np.delete(eeg, slice(session*200, (session+1)*200), 0)
-        all_fnirs = np.delete(fnirs, slice(session*200, (session+1)*200), 0)
-        all_label = np.delete(label, slice(session*200, (session+1)*200), 0)
+    FOLD = 3
+    for session in range(FOLD):
+        all_eeg = np.delete(eeg, slice(session*(600//FOLD), (session+1)*(600//FOLD)), 0)
+        all_fnirs = np.delete(fnirs, slice(session*(600//FOLD), (session+1)*(600//FOLD)), 0)
+        all_label = np.delete(label, slice(session*(600//FOLD), (session+1)*(600//FOLD)), 0)
 
         second_train_dataset = tf.data.Dataset.from_tensor_slices(
             (
@@ -50,11 +51,11 @@ for subject in subject_list:
                 {"class_output": all_label, 'eeg_output':all_label}
             )
         ) 
-        second_train_dataset = second_train_dataset.shuffle(buffer_size=400, reshuffle_each_iteration=True).batch(BS)
+        second_train_dataset = second_train_dataset.shuffle(buffer_size=600-(600//FOLD), reshuffle_each_iteration=True).batch(BS)
 
-        eeg_test = eeg[session*200:(session+1)*200,]
-        fnirs_test = fnirs[session*200:(session+1)*200,]
-        label_test = label[session*200:(session+1)*200,]
+        eeg_test = eeg[session*(600//FOLD):(session+1)*(600//FOLD),]
+        fnirs_test = fnirs[session*(600//FOLD):(session+1)*(600//FOLD),]
+        label_test = label[session*(600//FOLD):(session+1)*(600//FOLD),]
 
         test_dataset = tf.data.Dataset.from_tensor_slices(
             (
@@ -76,7 +77,7 @@ for subject in subject_list:
                     {"class_output": label_train, 'eeg_output':label_train} 
                 )
             ) 
-        first_train_dataset = first_train_dataset.shuffle(buffer_size=400, reshuffle_each_iteration=True).batch(BS)
+        first_train_dataset = first_train_dataset.shuffle(buffer_size=600-(600//FOLD), reshuffle_each_iteration=True).batch(BS)
 
         eeg_val = all_eeg[indices]
         fnirs_val = all_fnirs[indices]
