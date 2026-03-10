@@ -116,7 +116,7 @@ for subject in subject_list:
         #     clipnorm=1.0,
         # )
         optimizer = tf.keras.optimizers.AdamW(
-            learning_rate=2e-3,
+            learning_rate=5e-3,
             weight_decay=5e-4,
             beta_1=0.9,
             beta_2=0.999,
