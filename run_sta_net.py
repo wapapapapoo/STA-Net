@@ -322,9 +322,9 @@ for subject in subject_list:
         # print(f"; stage2 epoch = {best_epoch}")
         stage2_cb = TrainPlateauSWA(
             monitor="class_output_accuracy",
-            patience=30,   # n
-            swa_k=15,       # k
-            offset=10,
+            patience=15,   # n
+            swa_k=10,       # k
+            offset=5,
         )
         model.fit(second_train_dataset, epochs = 200,
                 verbose = 2, validation_data=test_dataset, callbacks=[stage2_cb])
