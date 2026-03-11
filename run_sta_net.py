@@ -300,39 +300,39 @@ for subject in subject_list:
         print(f"# subject {subject}, session {session}, stage 1")
         plateau_avg = PlateauAveraging(
             monitor="val_class_output_loss",
-            window=20,
+            window=40,
             # min_delta=1e-3,
-            patience=20,
-            trim_ratio=0.25,
+            patience=40,
+            trim_ratio=0.2,
         )
         first_history = model.fit(first_train_dataset, epochs = 300,
                 verbose = 2, validation_data=val_dataset,
                 callbacks=[plateau_avg])
         
-        min_val_class_output_loss = min(first_history.history['val_class_output_loss'])
-        min_val_class_output_loss_epoch = first_history.history['val_class_output_loss'].index(min_val_class_output_loss)
-        # target_acc = first_history.history['class_output_loss'][min_val_class_output_loss_epoch]
+        # min_val_class_output_loss = min(first_history.history['val_class_output_loss'])
+        # min_val_class_output_loss_epoch = first_history.history['val_class_output_loss'].index(min_val_class_output_loss)
+        # # target_acc = first_history.history['class_output_loss'][min_val_class_output_loss_epoch]
 
-        print(f"# subject {subject}, session {session}, stage 2")
-        # plateau_epochs = plateau_avg.plateau_epochs
-        # if len(plateau_epochs) > 0:
-        #     plateau_start = plateau_epochs[0]
-        #     plateau_end = plateau_epochs[-1]
-        #     best_epoch = int((plateau_start + plateau_end) / 2)
-        # else:
-        #     val_loss = np.array(first_history.history['val_class_output_loss'])
-        #     window = 9
-        #     smooth = np.convolve(val_loss, np.ones(window)/window, mode='valid')
-        #     best_epoch = int(np.argmin(smooth) + window)
-        # print(f"; stage2 epoch = {best_epoch}")
-        stage2_cb = TrainPlateauSWA(
-            monitor="class_output_accuracy",
-            patience=10,   # n
-            swa_k=8,      # k
-            offset=2,
-        )
-        model.fit(second_train_dataset, epochs = 200,
-                verbose = 2, validation_data=test_dataset, callbacks=[stage2_cb])
+        # print(f"# subject {subject}, session {session}, stage 2")
+        # # plateau_epochs = plateau_avg.plateau_epochs
+        # # if len(plateau_epochs) > 0:
+        # #     plateau_start = plateau_epochs[0]
+        # #     plateau_end = plateau_epochs[-1]
+        # #     best_epoch = int((plateau_start + plateau_end) / 2)
+        # # else:
+        # #     val_loss = np.array(first_history.history['val_class_output_loss'])
+        # #     window = 9
+        # #     smooth = np.convolve(val_loss, np.ones(window)/window, mode='valid')
+        # #     best_epoch = int(np.argmin(smooth) + window)
+        # # print(f"; stage2 epoch = {best_epoch}")
+        # stage2_cb = TrainPlateauSWA(
+        #     monitor="class_output_accuracy",
+        #     patience=10,   # n
+        #     swa_k=8,      # k
+        #     offset=2,
+        # )
+        # model.fit(second_train_dataset, epochs = 200,
+        #         verbose = 2, validation_data=test_dataset, callbacks=[stage2_cb])
         
         # print('begin test')
         # test_results = model.evaluate(test_dataset)
