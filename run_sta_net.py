@@ -22,6 +22,99 @@ class targetacccallback(keras.callbacks.Callback):
             # print("\nReached target loss value {} so cancelling training!\n".format(self.target_acc))
             self.model.stop_training = True
 
+class PlateauAveraging(tf.keras.callbacks.Callback):
+
+    def __init__(
+        self,
+        monitor="val_class_output_loss",
+        window=5,
+        min_delta=1e-3,
+        patience=20
+    ):
+        super().__init__()
+
+        self.monitor = monitor
+        self.window = window
+        self.min_delta = min_delta
+        self.patience = patience
+
+        self.loss_history = []
+        self.swa_weights = None
+        self.n_models = 0
+
+        self.plateau_started = False
+        self.wait = 0
+
+    def moving_avg(self):
+        arr = np.array(self.loss_history)
+        if len(arr) < self.window:
+            return None
+        return np.mean(arr[-self.window:])
+
+    def on_epoch_end(self, epoch, logs):
+
+        val_loss = logs[self.monitor]
+        self.loss_history.append(val_loss)
+
+        smooth = self.moving_avg()
+        if smooth is None:
+            return
+
+        # 判断是否进入 plateau
+        if len(self.loss_history) > self.window:
+            prev = np.mean(self.loss_history[-self.window-1:-1])
+            improvement = prev - smooth
+
+            if abs(improvement) < self.min_delta:
+                if not self.plateau_started:
+                    print(f"Plateau detected at epoch {epoch+1}")
+                    self.plateau_started = True
+
+        # plateau 内开始平均权重
+        if self.plateau_started:
+
+            weights = self.model.get_weights()
+
+            if self.swa_weights is None:
+                self.swa_weights = [w.copy() for w in weights]
+            else:
+                for i in range(len(weights)):
+                    self.swa_weights[i] = (
+                        self.swa_weights[i] * self.n_models + weights[i]
+                    ) / (self.n_models + 1)
+
+            self.n_models += 1
+
+            self.wait += 1
+
+            if self.wait >= self.patience:
+                print("Plateau stable → stopping training")
+                self.model.stop_training = True
+
+    def on_train_end(self, logs=None):
+
+        if self.swa_weights is not None:
+            print(f"Applying plateau-averaged weights ({self.n_models} models)")
+            self.model.set_weights(self.swa_weights)
+
+def sample_segments(total_len, segment_len=25, num_segments=4):
+
+    starts = []
+
+    while len(starts) < num_segments:
+        start = np.random.randint(0, total_len - segment_len + 1)
+
+        if all(
+            start + segment_len <= s or s + segment_len <= start
+            for s in starts
+        ):
+            starts.append(start)
+
+    indices = []
+    for s in starts:
+        indices.extend(range(s, s + segment_len))
+
+    return np.array(indices)
 
 subject_path = r'data/model_input'
 subject_list = os.listdir(subject_path)
@@ -65,8 +158,8 @@ for subject in subject_list:
         ) 
         test_dataset = test_dataset.batch(BS)
 
-        np.random.seed(42)
-        indices = np.random.choice(all_eeg.shape[0], size=80, replace=False)
+        np.random.seed(42 + session)
+        indices = sample_segments(all_eeg.shape[0], 25, 4)
 
         eeg_train = np.delete(all_eeg, indices, axis=0)
         fnirs_train = np.delete(all_fnirs, indices, axis=0)
@@ -98,8 +191,6 @@ for subject in subject_list:
         # print('fnirs_val shape:', fnirs_val.shape)
         # print('label_val shape:', label_val.shape)
 
-        print(f"# subject {subject}, session {session}")
-
         tf.keras.backend.clear_session()
         model = sta_net()
 
@@ -114,12 +205,12 @@ for subject in subject_list:
         model.compile(
             optimizer=optimizer,
             loss={
-                "class_output": "categorical_crossentropy",
-                "eeg_output": "categorical_crossentropy"
+                "class_output": tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1),
+                "eeg_output": tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1)
             },
             loss_weights={
                 "class_output": 1.0,
-                "eeg_output": 0.3
+                "eeg_output": 1.0
             },
             metrics={
                 "class_output": "accuracy",
@@ -136,19 +227,28 @@ for subject in subject_list:
             verbose=1
         )
 
-        # print('begin first train')
-        # first_history = model.fit(first_train_dataset, epochs = 200,
-        #         verbose = 2, validation_data=val_dataset,)
-        #         #callbacks=[stopping])
+        print(f"# subject {subject}, session {session}, stage 1")
+        plateau_avg = PlateauAveraging(
+            monitor="val_class_output_loss",
+            window=5,
+            min_delta=1e-3,
+            patience=20
+        )
+        first_history = model.fit(first_train_dataset, epochs = 300,
+                verbose = 2, validation_data=val_dataset,
+                callbacks=[plateau_avg])
         
-        # min_val_class_output_loss = min(first_history.history['val_class_output_loss'])
-        # min_val_class_output_loss_epoch = first_history.history['val_class_output_loss'].index(min_val_class_output_loss)
+        min_val_class_output_loss = min(first_history.history['val_class_output_loss'])
+        min_val_class_output_loss_epoch = first_history.history['val_class_output_loss'].index(min_val_class_output_loss)
         # target_acc = first_history.history['class_output_loss'][min_val_class_output_loss_epoch]
 
-        # print('begin second train')
-        # best_epoch = min_val_class_output_loss_epoch + 1 
-        model.fit(second_train_dataset, epochs = 200,
-                verbose = 2, validation_data=test_dataset)#callbacks=[targetacccallback(target_acc)])
+        print(f"# subject {subject}, session {session}, stage 2")
+        val_loss = np.array(first_history.history['val_class_output_loss'])
+        window = 5
+        smooth = np.convolve(val_loss, np.ones(window)/window, mode='valid')
+        best_epoch = int(np.argmin(smooth) + window)
+        model.fit(second_train_dataset, epochs = best_epoch,
+                verbose = 2, validation_data=test_dataset)
         
         # print('begin test')
         # test_results = model.evaluate(test_dataset)
