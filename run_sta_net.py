@@ -257,10 +257,10 @@ for subject in [subject_list[0], subject_list[5], subject_list[7], subject_list[
 
         # model.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['accuracy'])
         lr_schedule = tf.keras.optimizers.schedules.CosineDecay(
-            initial_learning_rate=8e-4,
+            initial_learning_rate=1e-3,
             decay_steps=12 * 500,
             alpha=0.1,
-            warmup_target=8e-4,
+            warmup_target=1e-3,
             warmup_steps=12 * 3,
         )
         optimizer = tf.keras.optimizers.AdamW(
