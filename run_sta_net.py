@@ -27,9 +27,10 @@ class PlateauAveraging(tf.keras.callbacks.Callback):
     def __init__(
         self,
         monitor="val_class_output_loss",
-        window=5,
+        window=9,
         min_delta=1e-3,
-        patience=20
+        patience=20,
+        trim_ratio=0.2
     ):
         super().__init__()
 
@@ -37,6 +38,7 @@ class PlateauAveraging(tf.keras.callbacks.Callback):
         self.window = window
         self.min_delta = min_delta
         self.patience = patience
+        self.trim_ratio = trim_ratio
 
         self.loss_history = []
         self.swa_weights = None
@@ -45,36 +47,38 @@ class PlateauAveraging(tf.keras.callbacks.Callback):
         self.plateau_started = False
         self.wait = 0
 
+        self.plateau_epochs = []
+
+    def trimmed_mean(self, arr):
+        arr = np.sort(arr)
+        k = int(len(arr) * self.trim_ratio)
+        if k > 0:
+            arr = arr[:-k]   # 去掉最大的k个loss
+        return np.mean(arr)
+
     def moving_avg(self):
-        arr = np.array(self.loss_history)
-        if len(arr) < self.window:
+        if len(self.loss_history) < self.window:
             return None
-        return np.mean(arr[-self.window:])
+        window_vals = self.loss_history[-self.window:]
+        return self.trimmed_mean(window_vals)
 
     def on_epoch_end(self, epoch, logs):
-
         val_loss = logs[self.monitor]
         self.loss_history.append(val_loss)
-
         smooth = self.moving_avg()
         if smooth is None:
             return
-
-        # 判断是否进入 plateau
         if len(self.loss_history) > self.window:
-            prev = np.mean(self.loss_history[-self.window-1:-1])
+            prev_window = self.loss_history[-self.window-1:-1]
+            prev = self.trimmed_mean(prev_window)
             improvement = prev - smooth
-
             if abs(improvement) < self.min_delta:
                 if not self.plateau_started:
-                    print(f"Plateau detected at epoch {epoch+1}")
+                    print(f"; Plateau detected at epoch {epoch+1}")
                     self.plateau_started = True
 
-        # plateau 内开始平均权重
         if self.plateau_started:
-
             weights = self.model.get_weights()
-
             if self.swa_weights is None:
                 self.swa_weights = [w.copy() for w in weights]
             else:
@@ -82,19 +86,19 @@ class PlateauAveraging(tf.keras.callbacks.Callback):
                     self.swa_weights[i] = (
                         self.swa_weights[i] * self.n_models + weights[i]
                     ) / (self.n_models + 1)
-
+            
             self.n_models += 1
-
             self.wait += 1
+            self.plateau_epochs.append(epoch + 1)
 
             if self.wait >= self.patience:
-                print("Plateau stable → stopping training")
+                print("; Plateau stable → stopping training")
                 self.model.stop_training = True
 
     def on_train_end(self, logs=None):
-
         if self.swa_weights is not None:
-            print(f"Applying plateau-averaged weights ({self.n_models} models)")
+            print(f"; Applying plateau-averaged weights ({self.n_models} models)")
+            print("; Plateau epochs:", self.plateau_epochs)
             self.model.set_weights(self.swa_weights)
 
 def sample_segments(total_len, segment_len=25, num_segments=4):
@@ -120,7 +124,7 @@ subject_path = r'data/model_input'
 subject_list = os.listdir(subject_path)
 subject_list.sort()
 
-BS = 4
+BS = 25
 
 for subject in subject_list:
     with np.load(os.path.join(subject_path, subject)) as data:
@@ -132,7 +136,7 @@ for subject in subject_list:
 
     label = label.astype(float)
 
-    FOLD = 6
+    FOLD = 3
     for session in range(FOLD):
         all_eeg = np.delete(eeg, slice(session*(600//FOLD), (session+1)*(600//FOLD)), 0)
         all_fnirs = np.delete(fnirs, slice(session*(600//FOLD), (session+1)*(600//FOLD)), 0)
