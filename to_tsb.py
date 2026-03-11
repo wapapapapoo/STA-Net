@@ -2,8 +2,8 @@ import re
 import os
 from torch.utils.tensorboard import SummaryWriter
 
-log_file = "train_cout.log"
-tb_root = "tb_logs"
+log_file = "cout.log"
+tb_root = "tb_logs2"
 
 os.makedirs(tb_root, exist_ok=True)
 
@@ -15,7 +15,7 @@ with open(log_file) as f:
 
         # 新实验
         if line.startswith("# "):
-            run_name = line[2:]
+            run_name = line[2:].strip()
             logdir = os.path.join(tb_root, run_name)
 
             if writer:
