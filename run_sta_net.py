@@ -339,11 +339,7 @@ for subject in subject_list:
         )
         model.fit(second_train_dataset, epochs = 200,
                 verbose = 2, validation_data=test_dataset, callbacks=[stage2_cb])
-        
-        # print('begin test')
-        # test_results = model.evaluate(test_dataset)
 
-        # print('begin test')
         test_results = model.evaluate(test_dataset, verbose=0, return_dict=True)
 
         output_file = "results.txt"
