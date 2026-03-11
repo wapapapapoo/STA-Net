@@ -220,7 +220,6 @@ for subject in subject_list:
         ) 
         test_dataset = test_dataset.batch(BS)
 
-        np.random.seed(42 + session)
         indices = sample_segments(all_eeg.shape[0], 20, 5)
 
         eeg_train = np.delete(all_eeg, indices, axis=0)
