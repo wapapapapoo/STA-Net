@@ -271,8 +271,8 @@ for subject in [subject_list[0], subject_list[5], subject_list[7], subject_list[
         model.compile(
             optimizer=optimizer,
             loss={
-                "class_output": tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1),
-                "eeg_output": tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1)
+                "class_output": tf.keras.losses.CategoricalCrossentropy(),
+                "eeg_output": tf.keras.losses.CategoricalCrossentropy()
             },
             loss_weights={
                 "class_output": 1.0,
