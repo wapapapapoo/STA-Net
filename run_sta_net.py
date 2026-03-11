@@ -260,8 +260,15 @@ for subject in subject_list:
         model = sta_net()
 
         # model.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['accuracy'])
+        lr_schedule = tf.keras.optimizers.schedules.CosineDecay(
+            initial_learning_rate=1e-3,
+            decay_steps=2400,
+            alpha=0.5,
+            warmup_target=1e-3,
+            warmup_steps=80,
+        )
         optimizer = tf.keras.optimizers.SGD(
-            learning_rate=1e-3,
+            learning_rate=lr_schedule,
             momentum=0.9,
             nesterov=True,
             weight_decay=1e-4,
