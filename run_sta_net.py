@@ -184,7 +184,7 @@ subject_list.sort()
 
 BS = 25
 
-for subject in subject_list:
+for subject in [subject_list[14]]:
     with np.load(os.path.join(subject_path, subject)) as data:
         eeg = data['eeg']
         fnirs = data['fnirs']
@@ -220,7 +220,7 @@ for subject in subject_list:
         ) 
         test_dataset = test_dataset.batch(BS)
 
-        np.random.seed(42 + session)
+        np.random.seed(114514)
         indices = sample_segments(all_eeg.shape[0], 20, 5)
 
         eeg_train = np.delete(all_eeg, indices, axis=0)
