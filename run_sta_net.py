@@ -28,7 +28,7 @@ class PlateauAveraging(tf.keras.callbacks.Callback):
         self,
         monitor="val_class_output_loss",
         window=9,
-        min_delta=1e-3,
+        min_delta=0,
         patience=20,
         trim_ratio=0.2
     ):
@@ -200,7 +200,7 @@ for subject in subject_list:
 
         # model.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['accuracy'])
         optimizer = tf.keras.optimizers.SGD(
-            learning_rate=5e-3,
+            learning_rate=2e-3,
             momentum=0.9,
             nesterov=True,
             weight_decay=1e-4,
@@ -235,7 +235,7 @@ for subject in subject_list:
         plateau_avg = PlateauAveraging(
             monitor="val_class_output_loss",
             window=10,
-            min_delta=1e-3,
+            # min_delta=1e-3,
             patience=20,
             trim_ratio=0.4,
         )
