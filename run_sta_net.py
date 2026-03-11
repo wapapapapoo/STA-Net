@@ -161,25 +161,22 @@ class TrainPlateauSWA(tf.keras.callbacks.Callback):
             self.model.set_weights(avg_weights)
             self.model.stop_training = True
 
-
-def sample_segments(total_len, segment_len=25, num_segments=4):
-
+def sample_segments(total_len, segment_len=20, num_segments=5):
     starts = []
-
+    possible_starts = list(range(0, total_len - segment_len + 1, 10))
     while len(starts) < num_segments:
-        start = np.random.randint(0, total_len - segment_len + 1)
-
+        start = np.random.choice(possible_starts)
         if all(
             start + segment_len <= s or s + segment_len <= start
             for s in starts
         ):
             starts.append(start)
-
     indices = []
     for s in starts:
         indices.extend(range(s, s + segment_len))
-
     return np.array(indices)
+
+
 
 subject_path = r'data/model_input'
 subject_list = os.listdir(subject_path)
@@ -224,7 +221,7 @@ for subject in subject_list:
         test_dataset = test_dataset.batch(BS)
 
         np.random.seed(42 + session)
-        indices = sample_segments(all_eeg.shape[0], 25, 4)
+        indices = sample_segments(all_eeg.shape[0], 20, 5)
 
         eeg_train = np.delete(all_eeg, indices, axis=0)
         fnirs_train = np.delete(all_fnirs, indices, axis=0)
@@ -314,20 +311,29 @@ for subject in subject_list:
         # target_acc = first_history.history['class_output_loss'][min_val_class_output_loss_epoch]
 
         print(f"# subject {subject}, session {session}, stage 2")
-        # plateau_epochs = plateau_avg.plateau_epochs
-        # if len(plateau_epochs) > 0:
-        #     plateau_start = plateau_epochs[0]
-        #     plateau_end = plateau_epochs[-1]
-        #     best_epoch = int((plateau_start + plateau_end) / 2)
-        # else:
-        #     val_loss = np.array(first_history.history['val_class_output_loss'])
-        #     window = 9
-        #     smooth = np.convolve(val_loss, np.ones(window)/window, mode='valid')
-        #     best_epoch = int(np.argmin(smooth) + window)
-        # print(f"; stage2 epoch = {best_epoch}")
+        optimizer_stage2 = tf.keras.optimizers.AdamW(
+            learning_rate=3e-4,
+            weight_decay=5e-5,
+            clipnorm=0.5,
+        )
+        model.compile(
+            optimizer=optimizer_stage2,
+            loss={
+                "class_output": tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1),
+                "eeg_output": tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1)
+            },
+            loss_weights={
+                "class_output": 1.0,
+                "eeg_output": 1.0
+            },
+            metrics={
+                "class_output": "accuracy",
+                "eeg_output": "accuracy"
+            }
+        )
         stage2_cb = TrainPlateauSWA(
             monitor="class_output_accuracy",
-            patience=10,   # n
+            patience=10,  # n
             swa_k=8,      # k
             offset=2,
         )
