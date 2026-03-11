@@ -261,18 +261,16 @@ for subject in subject_list:
 
         # model.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['accuracy'])
         lr_schedule = tf.keras.optimizers.schedules.CosineDecay(
-            initial_learning_rate=2e-3,
-            decay_steps=12*500,
-            alpha=0.25,
+            initial_learning_rate=1e-3,
+            decay_steps=12 * 500,
+            alpha=0.1,
             warmup_target=1e-3,
-            warmup_steps=12*1,
+            warmup_steps=12 * 3,
         )
-        optimizer = tf.keras.optimizers.SGD(
+        optimizer = tf.keras.optimizers.AdamW(
             learning_rate=lr_schedule,
-            momentum=0.9,
-            nesterov=True,
             weight_decay=1e-4,
-            clipnorm=1.0,
+            clipnorm=0.5,
         )
         model.compile(
             optimizer=optimizer,
