@@ -295,7 +295,7 @@ for subject in subject_list:
         print(f"# subject {subject}, session {session}, stage 1")
         plateau_avg = PlateauAveraging(
             monitor="val_class_output_loss",
-            window=10,
+            window=50,
             # min_delta=1e-3,
             patience=50,
             trim_ratio=0.4,
@@ -322,7 +322,7 @@ for subject in subject_list:
         # print(f"; stage2 epoch = {best_epoch}")
         stage2_cb = TrainPlateauSWA(
             monitor="class_output_accuracy",
-            patience=25,   # n
+            patience=50,   # n
             swa_k=15,       # k
             offset=10,
         )
