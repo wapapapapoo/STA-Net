@@ -296,10 +296,10 @@ for subject in [subject_list[0], subject_list[5], subject_list[7], subject_list[
         print(f"# subject {subject}, session {session}, stage 1")
         plateau_avg = PlateauAveraging(
             monitor="val_class_output_loss",
-            window=20,
+            window=40,
             # min_delta=1e-3,
-            patience=20,
-            trim_ratio=0.25,
+            patience=40,
+            trim_ratio=0.5,
         )
         first_history = model.fit(first_train_dataset, epochs = 300,
                 verbose = 2, validation_data=val_dataset,
