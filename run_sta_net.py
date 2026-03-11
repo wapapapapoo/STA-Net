@@ -72,7 +72,7 @@ class PlateauAveraging(tf.keras.callbacks.Callback):
             prev_window = self.loss_history[-self.window-1:-1]
             prev = self.trimmed_mean(prev_window)
             improvement = prev - smooth
-            if abs(improvement) < self.min_delta:
+            if improvement < self.min_delta:
                 if not self.plateau_started:
                     print(f"; Plateau detected at epoch {epoch+1}")
                     self.plateau_started = True
@@ -200,7 +200,7 @@ for subject in subject_list:
 
         # model.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['accuracy'])
         optimizer = tf.keras.optimizers.SGD(
-            learning_rate=3e-4,
+            learning_rate=5e-3,
             momentum=0.9,
             nesterov=True,
             weight_decay=1e-4,
@@ -234,9 +234,10 @@ for subject in subject_list:
         print(f"# subject {subject}, session {session}, stage 1")
         plateau_avg = PlateauAveraging(
             monitor="val_class_output_loss",
-            window=5,
+            window=10,
             min_delta=1e-3,
-            patience=20
+            patience=20,
+            trim_ratio=0.4,
         )
         first_history = model.fit(first_train_dataset, epochs = 300,
                 verbose = 2, validation_data=val_dataset,
@@ -247,10 +248,17 @@ for subject in subject_list:
         # target_acc = first_history.history['class_output_loss'][min_val_class_output_loss_epoch]
 
         print(f"# subject {subject}, session {session}, stage 2")
-        val_loss = np.array(first_history.history['val_class_output_loss'])
-        window = 5
-        smooth = np.convolve(val_loss, np.ones(window)/window, mode='valid')
-        best_epoch = int(np.argmin(smooth) + window)
+        plateau_epochs = plateau_avg.plateau_epochs
+        if len(plateau_epochs) > 0:
+            plateau_start = plateau_epochs[0]
+            plateau_end = plateau_epochs[-1]
+            best_epoch = int((plateau_start + plateau_end) / 2)
+        else:
+            val_loss = np.array(first_history.history['val_class_output_loss'])
+            window = 9
+            smooth = np.convolve(val_loss, np.ones(window)/window, mode='valid')
+            best_epoch = int(np.argmin(smooth) + window)
+        print(f"; stage2 epoch = {best_epoch}")
         model.fit(second_train_dataset, epochs = best_epoch,
                 verbose = 2, validation_data=test_dataset)
         
