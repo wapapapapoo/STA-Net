@@ -101,6 +101,59 @@ class PlateauAveraging(tf.keras.callbacks.Callback):
             print("; Plateau epochs:", self.plateau_epochs)
             self.model.set_weights(self.swa_weights)
 
+
+
+class TrainPlateauSWA(tf.keras.callbacks.Callback):
+
+    def __init__(
+        self,
+        monitor="class_output_accuracy",
+        patience=10,   # n
+        swa_k=5        # k
+    ):
+        super().__init__()
+
+        self.monitor = monitor
+        self.patience = patience
+        self.swa_k = swa_k
+
+        self.best = -np.inf
+        self.wait = 0
+
+        self.weight_buffer = []
+
+    def on_epoch_end(self, epoch, logs=None):
+        acc = logs[self.monitor]
+
+        # 保存权重到buffer
+        weights = self.model.get_weights()
+        self.weight_buffer.append([w.copy() for w in weights])
+        if len(self.weight_buffer) > self.swa_k:
+            self.weight_buffer.pop(0)
+
+        # 判断是否提升
+        if acc > self.best:
+            self.best = acc
+            self.wait = 0
+        else:
+            self.wait += 1
+
+        # plateau
+        if self.wait >= self.patience:
+            print("; Train acc plateau → stopping")
+            k = min(self.swa_k, len(self.weight_buffer))
+            avg_weights = []
+            for weights in zip(*self.weight_buffer[-k:]):
+                avg_weights.append(np.mean(weights, axis=0))
+            print(f"; SWA averaging last {k} epochs")
+            self.model.set_weights(avg_weights)
+            self.model.stop_training = True
+
+
+
+
+
+
 def sample_segments(total_len, segment_len=25, num_segments=4):
 
     starts = []
@@ -225,7 +278,7 @@ for subject in subject_list:
         # stopping = tf.keras.callbacks.EarlyStopping(monitor='val_class_output_loss', patience=50, restore_best_weights=True, verbose=1)
         stopping = tf.keras.callbacks.EarlyStopping(
             monitor='val_class_output_loss',
-            patience=50,
+            patience=100,
             restore_best_weights=True,
             mode='min',
             verbose=1
@@ -248,19 +301,24 @@ for subject in subject_list:
         # target_acc = first_history.history['class_output_loss'][min_val_class_output_loss_epoch]
 
         print(f"# subject {subject}, session {session}, stage 2")
-        plateau_epochs = plateau_avg.plateau_epochs
-        if len(plateau_epochs) > 0:
-            plateau_start = plateau_epochs[0]
-            plateau_end = plateau_epochs[-1]
-            best_epoch = int((plateau_start + plateau_end) / 2)
-        else:
-            val_loss = np.array(first_history.history['val_class_output_loss'])
-            window = 9
-            smooth = np.convolve(val_loss, np.ones(window)/window, mode='valid')
-            best_epoch = int(np.argmin(smooth) + window)
-        print(f"; stage2 epoch = {best_epoch}")
-        model.fit(second_train_dataset, epochs = best_epoch,
-                verbose = 2, validation_data=test_dataset)
+        # plateau_epochs = plateau_avg.plateau_epochs
+        # if len(plateau_epochs) > 0:
+        #     plateau_start = plateau_epochs[0]
+        #     plateau_end = plateau_epochs[-1]
+        #     best_epoch = int((plateau_start + plateau_end) / 2)
+        # else:
+        #     val_loss = np.array(first_history.history['val_class_output_loss'])
+        #     window = 9
+        #     smooth = np.convolve(val_loss, np.ones(window)/window, mode='valid')
+        #     best_epoch = int(np.argmin(smooth) + window)
+        # print(f"; stage2 epoch = {best_epoch}")
+        stage2_cb = TrainPlateauSWA(
+            monitor="class_output_accuracy",
+            patience=15,   # n
+            swa_k=8        # k
+        )
+        model.fit(second_train_dataset, epochs = 200,
+                verbose = 2, validation_data=test_dataset, callbacks=[stage2_cb])
         
         # print('begin test')
         # test_results = model.evaluate(test_dataset)
