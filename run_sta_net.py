@@ -102,20 +102,21 @@ class PlateauAveraging(tf.keras.callbacks.Callback):
             self.model.set_weights(self.swa_weights)
 
 
-
 class TrainPlateauSWA(tf.keras.callbacks.Callback):
 
     def __init__(
         self,
         monitor="class_output_accuracy",
-        patience=10,   # n
-        swa_k=5        # k
+        patience=15,   # n
+        swa_k=8,       # k
+        offset=2       # 跳过最后offset个epoch
     ):
         super().__init__()
 
         self.monitor = monitor
         self.patience = patience
         self.swa_k = swa_k
+        self.offset = offset
 
         self.best = -np.inf
         self.wait = 0
@@ -125,13 +126,16 @@ class TrainPlateauSWA(tf.keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs=None):
         acc = logs[self.monitor]
 
-        # 保存权重到buffer
+        # 保存权重
         weights = self.model.get_weights()
         self.weight_buffer.append([w.copy() for w in weights])
-        if len(self.weight_buffer) > self.swa_k:
+
+        # buffer长度需要 ≥ k + offset
+        max_buffer = self.swa_k + self.offset
+        if len(self.weight_buffer) > max_buffer:
             self.weight_buffer.pop(0)
 
-        # 判断是否提升
+        # 判断提升
         if acc > self.best:
             self.best = acc
             self.wait = 0
@@ -141,17 +145,21 @@ class TrainPlateauSWA(tf.keras.callbacks.Callback):
         # plateau
         if self.wait >= self.patience:
             print("; Train acc plateau → stopping")
-            k = min(self.swa_k, len(self.weight_buffer))
+            buf = self.weight_buffer
+            if len(buf) <= self.offset:
+                # 不够offset，只能全平均
+                selected = buf
+            else:
+                end = len(buf) - self.offset
+                start = max(0, end - self.swa_k)
+                selected = buf[start:end]
+            k = len(selected)
             avg_weights = []
-            for weights in zip(*self.weight_buffer[-k:]):
-                avg_weights.append(np.mean(weights, axis=0))
-            print(f"; SWA averaging last {k} epochs")
+            for ws in zip(*selected):
+                avg_weights.append(np.mean(ws, axis=0))
+            print(f"; SWA averaging {k} epochs (offset={self.offset})")
             self.model.set_weights(avg_weights)
             self.model.stop_training = True
-
-
-
-
 
 
 def sample_segments(total_len, segment_len=25, num_segments=4):
@@ -315,7 +323,8 @@ for subject in subject_list:
         stage2_cb = TrainPlateauSWA(
             monitor="class_output_accuracy",
             patience=15,   # n
-            swa_k=8        # k
+            swa_k=8,       # k
+            offset=2,
         )
         model.fit(second_train_dataset, epochs = 200,
                 verbose = 2, validation_data=test_dataset, callbacks=[stage2_cb])
