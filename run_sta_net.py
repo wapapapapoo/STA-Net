@@ -184,7 +184,7 @@ subject_list.sort()
 
 BS = 25
 
-for subject in [subject_list[0], subject_list[5], subject_list[7], subject_list[14], subject_list[20]]:
+for subject in subject_list: # [subject_list[0], subject_list[5], subject_list[7], subject_list[14], subject_list[20]]:
     with np.load(os.path.join(subject_path, subject)) as data:
         eeg = data['eeg']
         fnirs = data['fnirs']
