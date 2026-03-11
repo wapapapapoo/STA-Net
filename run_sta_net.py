@@ -261,7 +261,7 @@ for subject in subject_list:
 
         # model.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['accuracy'])
         optimizer = tf.keras.optimizers.SGD(
-            learning_rate=2e-3,
+            learning_rate=1e-3,
             momentum=0.9,
             nesterov=True,
             weight_decay=1e-4,
