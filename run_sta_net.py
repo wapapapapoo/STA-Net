@@ -284,20 +284,20 @@ for subject in subject_list:
         )
 
         # stopping = tf.keras.callbacks.EarlyStopping(monitor='val_class_output_loss', patience=50, restore_best_weights=True, verbose=1)
-        stopping = tf.keras.callbacks.EarlyStopping(
-            monitor='val_class_output_loss',
-            patience=100,
-            restore_best_weights=True,
-            mode='min',
-            verbose=1
-        )
+        # stopping = tf.keras.callbacks.EarlyStopping(
+        #     monitor='val_class_output_loss',
+        #     patience=100,
+        #     restore_best_weights=True,
+        #     mode='min',
+        #     verbose=1
+        # )
 
         print(f"# subject {subject}, session {session}, stage 1")
         plateau_avg = PlateauAveraging(
             monitor="val_class_output_loss",
             window=10,
             # min_delta=1e-3,
-            patience=20,
+            patience=50,
             trim_ratio=0.4,
         )
         first_history = model.fit(first_train_dataset, epochs = 300,
@@ -322,9 +322,9 @@ for subject in subject_list:
         # print(f"; stage2 epoch = {best_epoch}")
         stage2_cb = TrainPlateauSWA(
             monitor="class_output_accuracy",
-            patience=15,   # n
-            swa_k=8,       # k
-            offset=2,
+            patience=25,   # n
+            swa_k=15,       # k
+            offset=10,
         )
         model.fit(second_train_dataset, epochs = 200,
                 verbose = 2, validation_data=test_dataset, callbacks=[stage2_cb])
