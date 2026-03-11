@@ -311,7 +311,7 @@ for subject in subject_list:
 
         print(f"# subject {subject}, session {session}, stage 2")
         lr_schedule_stage2 = tf.keras.optimizers.schedules.CosineDecay(
-            initial_learning_rate=5e-4,
+            initial_learning_rate=5e-3,
             decay_steps=16 * 50,
             alpha=0.2
         )
