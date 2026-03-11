@@ -32,6 +32,10 @@ with open(log_file) as f:
         elif line.startswith("Epoch"):
             epoch = int(line.split()[1].split("/")[0])
 
+        # comment
+        elif line.startswith(";"):
+            continue
+
         # metrics
         elif " - " in line and "step" in line:
             parts = line.strip().split(" - ")
