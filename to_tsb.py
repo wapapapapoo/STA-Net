@@ -14,12 +14,8 @@ with open(log_file) as f:
     for line in f:
 
         # 新实验
-        if line.startswith("# subject"):
-            m = re.search(r"subject (.*), session (\d+)", line)
-            subject = m.group(1)
-            session = m.group(2)
-
-            run_name = f"{subject}_session{session}"
+        if line.startswith("# "):
+            run_name = line[2:]
             logdir = os.path.join(tb_root, run_name)
 
             if writer:
