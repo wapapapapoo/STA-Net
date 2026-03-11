@@ -21,13 +21,13 @@ class targetacccallback(keras.callbacks.Callback):
         if(logs['class_output_loss'] <= self.target_acc):
             # print("\nReached target loss value {} so cancelling training!\n".format(self.target_acc))
             self.model.stop_training = True
-
 class PlateauAveraging(tf.keras.callbacks.Callback):
 
     def __init__(
         self,
         monitor="val_class_output_loss",
         window=9,
+        offset=5,
         min_delta=0,
         patience=20,
         trim_ratio=0.2
@@ -36,24 +36,22 @@ class PlateauAveraging(tf.keras.callbacks.Callback):
 
         self.monitor = monitor
         self.window = window
+        self.offset = offset
         self.min_delta = min_delta
         self.patience = patience
         self.trim_ratio = trim_ratio
 
         self.loss_history = []
-        self.swa_weights = None
-        self.n_models = 0
+        self.weight_history = []
 
         self.plateau_started = False
         self.wait = 0
-
-        self.plateau_epochs = []
 
     def trimmed_mean(self, arr):
         arr = np.sort(arr)
         k = int(len(arr) * self.trim_ratio)
         if k > 0:
-            arr = arr[:-k]   # 去掉最大的k个loss
+            arr = arr[:-k]
         return np.mean(arr)
 
     def moving_avg(self):
@@ -62,9 +60,10 @@ class PlateauAveraging(tf.keras.callbacks.Callback):
         window_vals = self.loss_history[-self.window:]
         return self.trimmed_mean(window_vals)
 
-    def on_epoch_end(self, epoch, logs):
+    def on_epoch_end(self, epoch, logs=None):
         val_loss = logs[self.monitor]
         self.loss_history.append(val_loss)
+        self.weight_history.append(self.model.get_weights())
         smooth = self.moving_avg()
         if smooth is None:
             return
@@ -76,30 +75,34 @@ class PlateauAveraging(tf.keras.callbacks.Callback):
                 if not self.plateau_started:
                     print(f"; Plateau detected at epoch {epoch+1}")
                     self.plateau_started = True
-
         if self.plateau_started:
-            weights = self.model.get_weights()
-            if self.swa_weights is None:
-                self.swa_weights = [w.copy() for w in weights]
-            else:
-                for i in range(len(weights)):
-                    self.swa_weights[i] = (
-                        self.swa_weights[i] * self.n_models + weights[i]
-                    ) / (self.n_models + 1)
-            
-            self.n_models += 1
             self.wait += 1
-            self.plateau_epochs.append(epoch + 1)
-
             if self.wait >= self.patience:
                 print("; Plateau stable → stopping training")
+                self.stop_epoch = epoch
                 self.model.stop_training = True
 
+    def average_weights(self, weights_list):
+        avg = [w.copy() for w in weights_list[0]]
+        for weights in weights_list[1:]:
+            for i in range(len(avg)):
+                avg[i] += weights[i]
+        for i in range(len(avg)):
+            avg[i] /= len(weights_list)
+        return avg
+
     def on_train_end(self, logs=None):
-        if self.swa_weights is not None:
-            print(f"; Applying plateau-averaged weights ({self.n_models} models)")
-            print("; Plateau epochs:", self.plateau_epochs)
-            self.model.set_weights(self.swa_weights)
+        stop = self.stop_epoch + 1
+        start = stop - self.offset - self.window
+        end = stop - self.offset
+        start = max(start, 0)
+        selected = self.weight_history[start:end]
+        if len(selected) == 0:
+            print("; Not enough models for averaging")
+            return
+        print(f"; Averaging epochs {start+1} → {end}")
+        avg_weights = self.average_weights(selected)
+        self.model.set_weights(avg_weights)
 
 
 class TrainPlateauSWA(tf.keras.callbacks.Callback):
@@ -302,7 +305,8 @@ for subject in subject_list:
             monitor="val_class_output_loss",
             window=20,
             # min_delta=1e-3,
-            patience=20,
+            patience=40,
+            offset=20,
             trim_ratio=0.25,
         )
         first_history = model.fit(first_train_dataset, epochs = 300,
