@@ -298,7 +298,7 @@ for subject in subject_list:
             window=50,
             # min_delta=1e-3,
             patience=50,
-            trim_ratio=0.4,
+            trim_ratio=0.8,
         )
         first_history = model.fit(first_train_dataset, epochs = 300,
                 verbose = 2, validation_data=val_dataset,
@@ -322,7 +322,7 @@ for subject in subject_list:
         # print(f"; stage2 epoch = {best_epoch}")
         stage2_cb = TrainPlateauSWA(
             monitor="class_output_accuracy",
-            patience=50,   # n
+            patience=30,   # n
             swa_k=15,       # k
             offset=10,
         )
