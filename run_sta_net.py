@@ -311,10 +311,15 @@ for subject in subject_list:
         # target_acc = first_history.history['class_output_loss'][min_val_class_output_loss_epoch]
 
         print(f"# subject {subject}, session {session}, stage 2")
-        optimizer_stage2 = tf.keras.optimizers.AdamW(
-            learning_rate=5e-4,
-            weight_decay=5e-5,
-            clipnorm=0.5,
+        lr_schedule_stage2 = tf.keras.optimizers.schedules.CosineDecay(
+            initial_learning_rate=5e-4,
+            decay_steps=16 * 50,
+            alpha=0.2
+        )
+        optimizer_stage2 = tf.keras.optimizers.SGD(
+            learning_rate=lr_schedule_stage2,
+            momentum=0.9,
+            nesterov=True,
         )
         model.compile(
             optimizer=optimizer_stage2,
