@@ -302,9 +302,9 @@ for subject in subject_list:
         print(f"# subject {subject}, session {session}, stage 1")
         plateau_avg = PlateauAveraging(
             monitor="val_class_output_loss",
-            window=50,
+            window=80,
             # min_delta=1e-3,
-            patience=50,
+            patience=80,
             trim_ratio=0.8,
         )
         first_history = model.fit(first_train_dataset, epochs = 300,
