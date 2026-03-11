@@ -21,6 +21,9 @@ class targetacccallback(keras.callbacks.Callback):
         if(logs['class_output_loss'] <= self.target_acc):
             # print("\nReached target loss value {} so cancelling training!\n".format(self.target_acc))
             self.model.stop_training = True
+
+
+
 class PlateauAveraging(tf.keras.callbacks.Callback):
 
     def __init__(
@@ -46,6 +49,10 @@ class PlateauAveraging(tf.keras.callbacks.Callback):
 
         self.plateau_started = False
         self.wait = 0
+        self.stop_epoch = None
+
+        # 只保留必要历史
+        self.max_keep = window + offset + 1
 
     def trimmed_mean(self, arr):
         arr = np.sort(arr)
@@ -61,48 +68,82 @@ class PlateauAveraging(tf.keras.callbacks.Callback):
         return self.trimmed_mean(window_vals)
 
     def on_epoch_end(self, epoch, logs=None):
+
         val_loss = logs[self.monitor]
+
+        # 保存历史
         self.loss_history.append(val_loss)
         self.weight_history.append(self.model.get_weights())
+
+        # 限制历史长度
+        if len(self.loss_history) > self.max_keep:
+            self.loss_history.pop(0)
+            self.weight_history.pop(0)
+
         smooth = self.moving_avg()
         if smooth is None:
             return
+
         if len(self.loss_history) > self.window:
             prev_window = self.loss_history[-self.window-1:-1]
             prev = self.trimmed_mean(prev_window)
+
             improvement = prev - smooth
+
             if improvement < self.min_delta:
                 if not self.plateau_started:
                     print(f"; Plateau detected at epoch {epoch+1}")
                     self.plateau_started = True
+
         if self.plateau_started:
             self.wait += 1
+
             if self.wait >= self.patience:
                 print("; Plateau stable → stopping training")
                 self.stop_epoch = epoch
                 self.model.stop_training = True
 
     def average_weights(self, weights_list):
+
         avg = [w.copy() for w in weights_list[0]]
+
         for weights in weights_list[1:]:
             for i in range(len(avg)):
                 avg[i] += weights[i]
+
         for i in range(len(avg)):
             avg[i] /= len(weights_list)
+
         return avg
 
     def on_train_end(self, logs=None):
+
+        if self.stop_epoch is None:
+            print("; Training finished without plateau stop")
+            return
+
         stop = self.stop_epoch + 1
+
         start = stop - self.offset - self.window
         end = stop - self.offset
-        start = max(start, 0)
-        selected = self.weight_history[start:end]
+
+        # 由于history被截断，需要重新映射
+        history_len = len(self.weight_history)
+        start = max(start, stop - history_len)
+        end = max(end, stop - history_len)
+
+        start_idx = start - (stop - history_len)
+        end_idx = end - (stop - history_len)
+
+        selected = self.weight_history[start_idx:end_idx]
+
         if len(selected) == 0:
             print("; Not enough models for averaging")
             return
         print(f"; Averaging epochs {start+1} → {end}")
         avg_weights = self.average_weights(selected)
         self.model.set_weights(avg_weights)
+
 
 
 class TrainPlateauSWA(tf.keras.callbacks.Callback):
