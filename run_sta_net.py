@@ -220,7 +220,7 @@ for subject in [subject_list[14]]:
         ) 
         test_dataset = test_dataset.batch(BS)
 
-        np.random.seed(114514)
+        np.random.seed(42)
         indices = sample_segments(all_eeg.shape[0], 20, 5)
 
         eeg_train = np.delete(all_eeg, indices, axis=0)
@@ -258,10 +258,10 @@ for subject in [subject_list[14]]:
 
         # model.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['accuracy'])
         lr_schedule = tf.keras.optimizers.schedules.CosineDecay(
-            initial_learning_rate=1e-3,
+            initial_learning_rate=5e-4,
             decay_steps=12 * 500,
             alpha=0.1,
-            warmup_target=1e-3,
+            warmup_target=5e-4,
             warmup_steps=12 * 3,
         )
         optimizer = tf.keras.optimizers.AdamW(
@@ -312,7 +312,7 @@ for subject in [subject_list[14]]:
 
         print(f"# subject {subject}, session {session}, stage 2")
         optimizer_stage2 = tf.keras.optimizers.AdamW(
-            learning_rate=3e-4,
+            learning_rate=5e-4,
             weight_decay=5e-5,
             clipnorm=0.5,
         )
