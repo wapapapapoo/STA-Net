@@ -338,11 +338,11 @@ for subject in subject_list:
         )
         stage2_cb = TrainPlateauSWA(
             monitor="class_output_accuracy",
-            patience=10,  # n
-            swa_k=8,      # k
-            offset=2,
+            patience=12,  # n
+            swa_k=10,     # k
+            offset=3,
         )
-        model.fit(second_train_dataset, epochs = 200,
+        model.fit(second_train_dataset, epochs = 80,
                 verbose = 2, validation_data=test_dataset, callbacks=[stage2_cb])
 
         test_results = model.evaluate(test_dataset, verbose=0, return_dict=True)
