@@ -260,8 +260,8 @@ for subject in [subject_list[0], subject_list[5], subject_list[7], subject_list[
             initial_learning_rate=1e-3,
             decay_steps=12 * 500,
             alpha=0.1,
-            # warmup_target=1e-3,
-            # warmup_steps=12 * 10,
+            warmup_target=1e-3,
+            warmup_steps=12 * 8,
         )
         optimizer = tf.keras.optimizers.AdamW(
             learning_rate=lr_schedule,
