@@ -265,7 +265,7 @@ for subject in subject_list:
             decay_steps=12*500,
             alpha=0.25,
             warmup_target=1e-3,
-            warmup_steps=12*2,
+            warmup_steps=12*1,
         )
         optimizer = tf.keras.optimizers.SGD(
             learning_rate=lr_schedule,
@@ -282,7 +282,7 @@ for subject in subject_list:
             },
             loss_weights={
                 "class_output": 1.0,
-                "eeg_output": 0.3
+                "eeg_output": 1.0
             },
             metrics={
                 "class_output": "accuracy",
@@ -305,7 +305,7 @@ for subject in subject_list:
             window=20,
             # min_delta=1e-3,
             patience=20,
-            trim_ratio=0.2,
+            trim_ratio=0.25,
         )
         first_history = model.fit(first_train_dataset, epochs = 300,
                 verbose = 2, validation_data=val_dataset,
@@ -329,8 +329,8 @@ for subject in subject_list:
         # print(f"; stage2 epoch = {best_epoch}")
         stage2_cb = TrainPlateauSWA(
             monitor="class_output_accuracy",
-            patience=20,   # n
-            swa_k=10,       # k
+            patience=10,   # n
+            swa_k=8,      # k
             offset=2,
         )
         model.fit(second_train_dataset, epochs = 200,
