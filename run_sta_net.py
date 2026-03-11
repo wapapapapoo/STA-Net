@@ -261,18 +261,18 @@ for subject in [subject_list[0], subject_list[5], subject_list[7], subject_list[
             decay_steps=12 * 500,
             alpha=0.1,
             warmup_target=1e-3,
-            warmup_steps=12 * 8,
+            warmup_steps=12 * 12,
         )
         optimizer = tf.keras.optimizers.AdamW(
             learning_rate=lr_schedule,
             weight_decay=1e-4,
-            clipnorm=0.5,
+            clipnorm=1.0,
         )
         model.compile(
             optimizer=optimizer,
             loss={
-                "class_output": tf.keras.losses.CategoricalCrossentropy(),
-                "eeg_output": tf.keras.losses.CategoricalCrossentropy()
+                "class_output": tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.2),
+                "eeg_output": tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.2)
             },
             loss_weights={
                 "class_output": 1.0,
