@@ -391,16 +391,16 @@ for subject in subject_list:
                 callbacks=[plateau_avg]
             )
 
-            cur_best = max(first_history.history["val_class_output_accuracy"])
-            print("; stage1 best val acc:", cur_best)
+            val_result = model.evaluate(val_dataset, verbose=0, return_dict=True)
+            cur_acc = val_result["class_output_accuracy"]
 
-            # 记录最好结果
-            if cur_best > best_acc:
-                best_acc = cur_best
+            print("; stage1 final val acc:", cur_acc)
+
+            if cur_acc > best_acc:
+                best_acc = cur_acc
                 best_weights = model.get_weights()
 
-            # 达到阈值直接停止
-            if cur_best >= retry_bar:
+            if cur_acc >= retry_bar:
                 print(f"; reached retry_bar {retry_bar}, stop retry")
                 break
 
