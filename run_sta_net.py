@@ -336,7 +336,7 @@ for subject in subject_list:
         best_acc = -1
         best_weights = None
 
-        for i in range(20):
+        for i in range(10):
             seed = np.random.randint(0, 114514)
             np.random.seed(seed)
             tf.random.set_seed(seed)
