@@ -293,7 +293,6 @@ for subject in subject_list:
         ) 
         test_dataset = test_dataset.batch(BS)
 
-        np.random.seed(42)
         indices = sample_segments(all_eeg.shape[0], 20, 5)
 
         eeg_train = np.delete(all_eeg, indices, axis=0)
@@ -418,9 +417,6 @@ for subject in subject_list:
 
 
             
-        min_val_class_output_loss = min(first_history.history['val_class_output_loss'])
-        min_val_class_output_loss_epoch = first_history.history['val_class_output_loss'].index(min_val_class_output_loss)
-        # target_acc = first_history.history['class_output_loss'][min_val_class_output_loss_epoch]
 
         print(f"# subject {subject}, session {session}, stage 2")
         lr_schedule_stage2 = tf.keras.optimizers.schedules.CosineDecay(
