@@ -273,12 +273,24 @@ for subject in subject_list:
         all_fnirs = np.delete(fnirs, slice(session*(600//FOLD), (session+1)*(600//FOLD)), 0)
         all_label = np.delete(label, slice(session*(600//FOLD), (session+1)*(600//FOLD)), 0)
 
+        test_pos = session*(600//FOLD)
+        if session == 0:
+            indices = np.arange(0, 100)
+        elif session == FOLD - 1:
+            indices = np.arange(300, 400)
+        else:
+            boundary = test_pos
+            indices = np.concatenate([
+                np.arange(boundary - 50, boundary),
+                np.arange(boundary, boundary + 50)
+            ])
+
         second_train_dataset = tf.data.Dataset.from_tensor_slices(
             (
                 {"eeg_input": all_eeg, "fnirs_input": all_fnirs},
                 {"class_output": all_label, 'eeg_output':all_label}
             )
-        ) 
+        )
         second_train_dataset = second_train_dataset.shuffle(buffer_size=600, reshuffle_each_iteration=True).batch(BS)
 
         eeg_test = eeg[session*(600//FOLD):(session+1)*(600//FOLD),]
@@ -290,10 +302,8 @@ for subject in subject_list:
                 {"eeg_input": eeg_test, "fnirs_input": fnirs_test},
                 {"class_output": label_test, 'eeg_output':label_test} 
             )
-        ) 
+        )
         test_dataset = test_dataset.batch(BS)
-
-        indices = sample_segments(all_eeg.shape[0], 20, 5)
 
         eeg_train = np.delete(all_eeg, indices, axis=0)
         fnirs_train = np.delete(all_fnirs, indices, axis=0)
@@ -314,7 +324,7 @@ for subject in subject_list:
                 {"eeg_input": eeg_val, "fnirs_input": fnirs_val},
                 {"class_output": label_val, 'eeg_output':label_val} 
             )
-        ) 
+        )
         val_dataset = val_dataset.batch(BS)
 
 
