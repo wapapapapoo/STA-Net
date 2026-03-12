@@ -336,7 +336,7 @@ for subject in subject_list:
         best_acc = -1
         best_weights = None
 
-        for i in range(10):
+        for i in range(5):
             seed = np.random.randint(0, 114514)
             np.random.seed(seed)
             tf.random.set_seed(seed)
@@ -423,14 +423,40 @@ for subject in subject_list:
         # target_acc = first_history.history['class_output_loss'][min_val_class_output_loss_epoch]
 
         print(f"# subject {subject}, session {session}, stage 2")
+        lr_schedule_stage2 = tf.keras.optimizers.schedules.CosineDecay(
+            initial_learning_rate=5e-3,
+            decay_steps=16 * 50,
+            alpha=0.2
+        )
+        optimizer_stage2 = tf.keras.optimizers.SGD(
+            learning_rate=lr_schedule_stage2,
+            momentum=0.9,
+            nesterov=True,
+        )
+        model.compile(
+            optimizer=optimizer_stage2,
+            loss={
+                "class_output": tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1),
+                "eeg_output": tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1)
+            },
+            loss_weights={
+                "class_output": 1.0,
+                "eeg_output": 1.0
+            },
+            metrics={
+                "class_output": "accuracy",
+                "eeg_output": "accuracy"
+            }
+        )
         stage2_cb = TrainPlateauSWA(
             monitor="class_output_accuracy",
-            patience=10,   # n
-            swa_k=8,      # k
-            offset=2,
+            patience=12,  # n
+            swa_k=10,     # k
+            offset=3,
         )
-        model.fit(second_train_dataset, epochs = 200,
+        model.fit(second_train_dataset, epochs = 80,
                 verbose = 2, validation_data=test_dataset, callbacks=[stage2_cb])
+
 
 
 
