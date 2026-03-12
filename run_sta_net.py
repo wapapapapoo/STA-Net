@@ -259,6 +259,14 @@ for subject in subject_list:
 
     label = label.astype(float)
 
+
+
+
+
+
+
+
+
     FOLD = 3
     for session in range(FOLD):
         all_eeg = np.delete(eeg, slice(session*(600//FOLD), (session+1)*(600//FOLD)), 0)
@@ -310,83 +318,111 @@ for subject in subject_list:
         ) 
         val_dataset = val_dataset.batch(BS)
 
-        # print('eeg_train shape:', eeg_train.shape)
-        # print('fnirs_train shape:', fnirs_train.shape)
-        # print('label_train shape:', label_train.shape)
 
-        # print('eeg_val shape:', eeg_val.shape)
-        # print('fnirs_val shape:', fnirs_val.shape)
-        # print('label_val shape:', label_val.shape)
 
-        tf.keras.backend.clear_session()
-        model = sta_net()
 
-        # model.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['accuracy'])
-        lr_schedule = tf.keras.optimizers.schedules.CosineDecay(
-            initial_learning_rate=1e-3,
-            decay_steps=12 * 500,
-            alpha=0.1,
-            warmup_target=1e-3,
-            warmup_steps=12 * 3,
-        )
-        optimizer = tf.keras.optimizers.AdamW(
-            learning_rate=lr_schedule,
-            weight_decay=1e-4,
-            clipnorm=0.5,
-        )
-        model.compile(
-            optimizer=optimizer,
-            loss={
-                "class_output": tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1),
-                "eeg_output": tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1)
-            },
-            loss_weights={
-                "class_output": 1.0,
-                "eeg_output": 1.0
-            },
-            metrics={
-                "class_output": "accuracy",
-                "eeg_output": "accuracy"
-            }
-        )
 
-        # stopping = tf.keras.callbacks.EarlyStopping(monitor='val_class_output_loss', patience=50, restore_best_weights=True, verbose=1)
-        # stopping = tf.keras.callbacks.EarlyStopping(
-        #     monitor='val_class_output_loss',
-        #     patience=100,
-        #     restore_best_weights=True,
-        #     mode='min',
-        #     verbose=1
-        # )
 
-        print(f"# subject {subject}, session {session}, stage 1")
-        plateau_avg = PlateauAveraging(
-            monitor="val_class_output_loss",
-            window=20,
-            # min_delta=1e-3,
-            patience=20,
-            trim_ratio=0.25,
-        )
-        first_history = model.fit(first_train_dataset, epochs = 300,
-                verbose = 2, validation_data=val_dataset,
-                callbacks=[plateau_avg])
-        
+
+
+
+
+
+
+
+
+
+        retry_bar = 0.8
+        best_acc = -1
+        best_weights = None
+
+        for i in range(20):
+            seed = np.random.randint(0, 114514)
+            np.random.seed(seed)
+            tf.random.set_seed(seed)
+
+            tf.keras.backend.clear_session()
+            model = sta_net()
+
+            lr_schedule = tf.keras.optimizers.schedules.CosineDecay(
+                initial_learning_rate=1e-3,
+                decay_steps=12 * 500,
+                alpha=0.1,
+                warmup_target=1e-3,
+                warmup_steps=12 * 3,
+            )
+
+            optimizer = tf.keras.optimizers.AdamW(
+                learning_rate=lr_schedule,
+                weight_decay=1e-4,
+                clipnorm=0.5,
+            )
+
+            model.compile(
+                optimizer=optimizer,
+                loss={
+                    "class_output": tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1),
+                    "eeg_output": tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1)
+                },
+                loss_weights={
+                    "class_output": 1.0,
+                    "eeg_output": 1.0
+                },
+                metrics={
+                    "class_output": "accuracy",
+                    "eeg_output": "accuracy"
+                }
+            )
+
+            print(f"# subject {subject}, session {session}, stage 1, retry {i}")
+
+            plateau_avg = PlateauAveraging(
+                monitor="val_class_output_loss",
+                window=20,
+                patience=20,
+                trim_ratio=0.25,
+            )
+
+            first_history = model.fit(
+                first_train_dataset,
+                epochs=300,
+                verbose=2,
+                validation_data=val_dataset,
+                callbacks=[plateau_avg]
+            )
+
+            cur_best = max(first_history.history["val_class_output_accuracy"])
+            print("; stage1 best val acc:", cur_best)
+
+            # 记录最好结果
+            if cur_best > best_acc:
+                best_acc = cur_best
+                best_weights = model.get_weights()
+
+            # 达到阈值直接停止
+            if cur_best >= retry_bar:
+                print(f"; reached retry_bar {retry_bar}, stop retry")
+                break
+
+
+        # 如果没有达到 bar，则恢复最佳模型
+        if best_weights is not None:
+            model.set_weights(best_weights)
+
+        print("; stage1 final val acc:", best_acc)
+
+
+
+
+
+
+
+            
         min_val_class_output_loss = min(first_history.history['val_class_output_loss'])
         min_val_class_output_loss_epoch = first_history.history['val_class_output_loss'].index(min_val_class_output_loss)
         # target_acc = first_history.history['class_output_loss'][min_val_class_output_loss_epoch]
 
         print(f"# subject {subject}, session {session}, stage 2")
-        # plateau_epochs = plateau_avg.plateau_epochs
-        # if len(plateau_epochs) > 0:
-        #     plateau_start = plateau_epochs[0]
-        #     plateau_end = plateau_epochs[-1]
-        #     best_epoch = int((plateau_start + plateau_end) / 2)
-        # else:
-        #     val_loss = np.array(first_history.history['val_class_output_loss'])
-        #     window = 9
-        #     smooth = np.convolve(val_loss, np.ones(window)/window, mode='valid')
-        #     best_epoch = int(np.argmin(smooth) + window)
-        # print(f"; stage2 epoch = {best_epoch}")
         stage2_cb = TrainPlateauSWA(
             monitor="class_output_accuracy",
             patience=10,   # n
@@ -395,11 +431,14 @@ for subject in subject_list:
         )
         model.fit(second_train_dataset, epochs = 200,
                 verbose = 2, validation_data=test_dataset, callbacks=[stage2_cb])
-        
-        # print('begin test')
-        # test_results = model.evaluate(test_dataset)
 
-        # print('begin test')
+
+
+
+
+
+
+
         test_results = model.evaluate(test_dataset, verbose=0, return_dict=True)
 
         output_file = "results.txt"
