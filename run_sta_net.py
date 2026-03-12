@@ -22,6 +22,17 @@ class targetacccallback(keras.callbacks.Callback):
             # print("\nReached target loss value {} so cancelling training!\n".format(self.target_acc))
             self.model.stop_training = True
 
+
+
+
+
+
+
+
+
+
+
+
 class PlateauAveraging(tf.keras.callbacks.Callback):
 
     def __init__(
@@ -41,65 +52,97 @@ class PlateauAveraging(tf.keras.callbacks.Callback):
         self.trim_ratio = trim_ratio
 
         self.loss_history = []
-        self.swa_weights = None
-        self.n_models = 0
 
         self.plateau_started = False
         self.wait = 0
 
-        self.plateau_epochs = []
+        # 保存 plateau 阶段的 (loss, weights)
+        self.plateau_records = []
 
     def trimmed_mean(self, arr):
         arr = np.sort(arr)
         k = int(len(arr) * self.trim_ratio)
         if k > 0:
-            arr = arr[:-k]   # 去掉最大的k个loss
+            arr = arr[:-k]
         return np.mean(arr)
 
     def moving_avg(self):
         if len(self.loss_history) < self.window:
             return None
-        window_vals = self.loss_history[-self.window:]
-        return self.trimmed_mean(window_vals)
+        return self.trimmed_mean(self.loss_history[-self.window:])
 
-    def on_epoch_end(self, epoch, logs):
+    def on_epoch_end(self, epoch, logs=None):
+
         val_loss = logs[self.monitor]
         self.loss_history.append(val_loss)
+
         smooth = self.moving_avg()
         if smooth is None:
             return
+
         if len(self.loss_history) > self.window:
             prev_window = self.loss_history[-self.window-1:-1]
             prev = self.trimmed_mean(prev_window)
+
             improvement = prev - smooth
+
             if improvement < self.min_delta:
                 if not self.plateau_started:
                     print(f"; Plateau detected at epoch {epoch+1}")
                     self.plateau_started = True
 
         if self.plateau_started:
+
             weights = self.model.get_weights()
-            if self.swa_weights is None:
-                self.swa_weights = [w.copy() for w in weights]
-            else:
-                for i in range(len(weights)):
-                    self.swa_weights[i] = (
-                        self.swa_weights[i] * self.n_models + weights[i]
-                    ) / (self.n_models + 1)
-            
-            self.n_models += 1
+            self.plateau_records.append(
+                (val_loss, [w.copy() for w in weights])
+            )
+
             self.wait += 1
-            self.plateau_epochs.append(epoch + 1)
 
             if self.wait >= self.patience:
-                print("; Plateau stable → stopping training")
+                print("; Plateau stable → stopping")
                 self.model.stop_training = True
 
     def on_train_end(self, logs=None):
-        if self.swa_weights is not None:
-            print(f"; Applying plateau-averaged weights ({self.n_models} models)")
-            print("; Plateau epochs:", self.plateau_epochs)
-            self.model.set_weights(self.swa_weights)
+
+        if len(self.plateau_records) == 0:
+            return
+
+        records = self.plateau_records
+
+        losses = np.array([r[0] for r in records])
+
+        k = int(len(losses) * self.trim_ratio)
+
+        # 根据loss排序
+        idx = np.argsort(losses)
+
+        # 去掉最大的k个
+        if k > 0:
+            idx = idx[:-k]
+
+        selected = [records[i][1] for i in idx]
+
+        print(f"; Trimmed SWA using {len(selected)} / {len(records)} epochs")
+
+        avg_weights = []
+
+        for ws in zip(*selected):
+            avg_weights.append(np.mean(ws, axis=0))
+
+        self.model.set_weights(avg_weights)
+
+
+
+
+
+
+
+
+
+
+
 
 
 class TrainPlateauSWA(tf.keras.callbacks.Callback):
@@ -161,6 +204,26 @@ class TrainPlateauSWA(tf.keras.callbacks.Callback):
             self.model.set_weights(avg_weights)
             self.model.stop_training = True
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 def sample_segments(total_len, segment_len=20, num_segments=5):
     starts = []
     possible_starts = list(range(0, total_len - segment_len + 1, 10))
@@ -175,6 +238,25 @@ def sample_segments(total_len, segment_len=20, num_segments=5):
     for s in starts:
         indices.extend(range(s, s + segment_len))
     return np.array(indices)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
