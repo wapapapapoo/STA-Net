@@ -11,88 +11,29 @@ import torch.nn.functional as F
 
 class LossModule(nn.Module):
 
-    def __init__(self,
-                 contrast_w=0.2,
-                 pred_w=0.1,
-                 temperature=0.07):
+    def __init__(self, align_w=0.2):
 
         super().__init__()
 
         self.ce = nn.CrossEntropyLoss()
 
-        self.contrast_w = contrast_w
-        self.pred_w = pred_w
-
-        self.temp = temperature
-
-    # --------------------------
-    # classification
-    # --------------------------
-
-    def classification(self, logits, label):
-
-        target = torch.argmax(label, dim=1)
-
-        return self.ce(logits, target)
-
-    # --------------------------
-    # contrastive (InfoNCE)
-    # --------------------------
-
-    def contrastive(self, eeg_proj, fnirs_proj):
-
-        eeg_proj = F.normalize(eeg_proj, dim=1)
-        fnirs_proj = F.normalize(fnirs_proj, dim=1)
-
-        logits = torch.matmul(eeg_proj, fnirs_proj.T) / self.temp
-
-        labels = torch.arange(logits.shape[0]).to(logits.device)
-
-        loss_e = F.cross_entropy(logits, labels)
-        loss_f = F.cross_entropy(logits.T, labels)
-
-        return (loss_e + loss_f) / 2
-
-    # --------------------------
-    # cross-modal prediction
-    # --------------------------
-
-    def prediction(self, fnirs_pred, fnirs_feat):
-
-        return F.mse_loss(fnirs_pred, fnirs_feat)
-
-    # --------------------------
-    # total loss
-    # --------------------------
+        self.align_w = align_w
 
     def forward(self, output, label):
 
         logits = output["logits"]
-        eeg_proj = output["eeg_proj"]
-        fnirs_proj = output["fnirs_proj"]
-        fnirs_pred = output["fnirs_pred"]
+
+        eeg_feat = output["eeg_feat"]
+
         fnirs_feat = output["fnirs_feat"]
 
-        cls_loss = self.classification(logits, label)
+        target = torch.argmax(label, dim=1)
 
-        contrast_loss = self.contrastive(
-            eeg_proj,
-            fnirs_proj
-        )
+        cls = self.ce(logits, target)
 
-        pred_loss = self.prediction(
-            fnirs_pred,
-            fnirs_feat
-        )
+        align = F.mse_loss(eeg_feat, fnirs_feat)
 
-        total = (
-            cls_loss
-            + self.contrast_w * contrast_loss
-            + self.pred_w * pred_loss
-        )
-
-        return total
-
+        return cls + self.align_w * align
 
 
 
