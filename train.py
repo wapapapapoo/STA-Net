@@ -1,10 +1,18 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from eval import evaluate
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
+def contrastive_loss(z, trial):
+    z = F.normalize(z, dim=1)
+    sim = torch.matmul(z, z.T)
+    mask = trial.unsqueeze(1) == trial.unsqueeze(0)
+    pos = sim[mask].mean()
+    neg = sim[~mask].mean()
+    return neg - pos
 
 def compute_loss(model, loader, criterion):
     model.eval()
@@ -15,11 +23,9 @@ def compute_loss(model, loader, criterion):
             eeg = batch["eeg_input"].to(DEVICE)
             fnirs = batch["fnirs_input"].to(DEVICE)
             label = batch["label"].to(DEVICE)
-
-            output = model(eeg, fnirs)
+            logits, _ = model(eeg, fnirs)
             target = torch.argmax(label, dim=1)
-
-            loss = criterion(output, target)
+            loss = criterion(logits, target)
             total_loss += loss.item()
 
     return total_loss / len(loader)
@@ -36,38 +42,32 @@ def train_epoch(model, loader, optimizer, criterion, args):
         trial = batch["trial_label"].to(DEVICE)
 
         optimizer.zero_grad()
-        output = model(eeg, fnirs)
+        logits, feat = model(eeg, fnirs)
         target = torch.argmax(label, dim=1)
-        cls_loss = criterion(output, target)
+        cls_loss = criterion(logits, target)
 
-        # trial consistency
-        feat = output.detach()
+        feat_norm = F.normalize(feat, dim=1)
+        sim = torch.matmul(feat_norm, feat_norm.T)
+        mask = trial.unsqueeze(1) == trial.unsqueeze(0)
+        pos = sim[mask].mean()
+        neg = sim[~mask].mean()
+        contrast = neg - pos
 
-        trial_mean = {}
-        cons_loss = 0
+        trial_mean = []
+        for t in torch.unique(trial):
+            trial_mean.append(feat[trial == t].mean(0))
 
-        for i in range(len(trial)):
-            t = trial[i].item()
-            if t not in trial_mean:
-                trial_mean[t] = []
-            trial_mean[t].append(feat[i])
+        trial_mean = torch.stack(trial_mean)
+        cons_loss = ((feat - trial_mean[trial])**2).mean()
 
-        for t in trial_mean:
-            f = torch.stack(trial_mean[t])
-            m = f.mean(0)
-            cons_loss += ((f - m)**2).mean()
-
-        cons_loss = cons_loss / len(trial_mean)
-        loss = cls_loss + 0.1 * cons_loss
+        loss = cls_loss + 0.1 * cons_loss + 0.05 * contrast
         loss.backward()
         optimizer.step()
         total_loss += loss.item()
 
     return total_loss / len(loader)
 
-
 def train(model, train_loader, val_loader, args):
-
     optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
     criterion = nn.CrossEntropyLoss()
 
