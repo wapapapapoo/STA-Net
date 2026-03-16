@@ -14,7 +14,7 @@ class LossModule(nn.Module):
 
         self.ce = nn.CrossEntropyLoss()
 
-    def forward(self, output, label):
+    def forward(self, output, label, epoch):
 
         target = torch.argmax(label, dim=1)
 
@@ -32,13 +32,13 @@ class LossModule(nn.Module):
             self.ce(output["session_fusion"], trial_group)
         )
 
-        loss = loss_main + loss_session
+        loss = loss_main + epoch / 100 * loss_session
 
         return loss
 
 
 
-def train_epoch(model, loader, optimizer, loss_fn, args):
+def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
     model.train()
     total_loss = 0
     for batch in loader:
@@ -60,8 +60,8 @@ def train_epoch(model, loader, optimizer, loss_fn, args):
         output2["trial_group"] = trial_group
 
         # CE loss
-        loss1 = loss_fn(output1, label)
-        loss2 = loss_fn(output2, label)
+        loss1 = loss_fn(output1, label, epoch)
+        loss2 = loss_fn(output2, label, epoch)
 
         ce_loss = 0.5 * (loss1 + loss2)
 
@@ -155,6 +155,7 @@ def train(model, train_loader, val_loader, args):
     for epoch in range(50):
 
         train_loss = train_epoch(
+            epoch,
             model,
             train_loader,
             optimizer,
