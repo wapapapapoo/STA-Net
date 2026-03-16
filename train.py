@@ -158,7 +158,7 @@ def train(model, train_loader, val_loader, args):
             f"tl:{train_loss:.4f} | "
             f"vl:{val_loss:.4f} | "
             f"tacc:{train_acc:.4f} | "
-            f"vacc:{val_acc:.4f}"
+            f"vacc:{val_acc:.4f}", flush=True
         )
 
     return model
