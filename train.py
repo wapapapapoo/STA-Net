@@ -28,7 +28,7 @@ class LossModule(nn.Module):
 
         loss_session = self.ce(output["session_logits"], trial_group)
 
-        loss = loss_main + (epoch / 100) * loss_session
+        loss = loss_main #+ (epoch / 100) * loss_session
 
         return loss
 
