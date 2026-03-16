@@ -1,65 +1,108 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import random
 
 
-# -------------------------------------------------
-# Signal augmentation
-# -------------------------------------------------
+# ---------------------------------------
+# temporal compression
+# ---------------------------------------
 
-def augment_signal(x):
+class TemporalReduce(nn.Module):
 
-    x = x.clone()
-
-    if random.random() < 0.5:
-        x = x + torch.randn_like(x) * 0.05
-
-    if random.random() < 0.5:
-        shift = torch.randint(-15, 15, (1,), device=x.device).item()
-        x = torch.roll(x, int(shift), dims=-1)
-
-    if random.random() < 0.3:
-        mask = (torch.rand(x.shape[0], x.shape[1], 1, device=x.device) > 0.2)
-        x = x * mask
-
-    return x
-
-
-# -------------------------------------------------
-# Very small temporal encoder
-# -------------------------------------------------
-
-class TinyEncoder(nn.Module):
-
-    def __init__(self, cin, hidden=32):
+    def __init__(self, cin, cout):
 
         super().__init__()
 
-        self.conv1 = nn.Conv1d(cin, hidden, 9, padding=4)
-        self.conv2 = nn.Conv1d(hidden, hidden, 9, padding=4)
+        self.conv = nn.Conv1d(
+            cin,
+            cout,
+            kernel_size=25,
+            stride=5,
+            padding=12
+        )
 
-        self.norm = nn.GroupNorm(4, hidden)
+        self.norm = nn.GroupNorm(4, cout)
 
     def forward(self, x):
 
-        x = F.gelu(self.conv1(x))
-        x = F.gelu(self.conv2(x))
+        x = self.conv(x)
+        x = self.norm(x)
+
+        return F.gelu(x)
+
+
+# ---------------------------------------
+# depthwise block
+# ---------------------------------------
+
+class DWBlock(nn.Module):
+
+    def __init__(self, c):
+
+        super().__init__()
+
+        self.dw = nn.Conv1d(
+            c,
+            c,
+            kernel_size=7,
+            padding=3,
+            groups=c
+        )
+
+        self.pw = nn.Conv1d(c, c, 1)
+
+        self.norm = nn.GroupNorm(4, c)
+
+    def forward(self, x):
+
+        res = x
+
+        x = self.dw(x)
+        x = self.pw(x)
 
         x = self.norm(x)
+
+        return F.gelu(x + res)
+
+
+# ---------------------------------------
+# encoder
+# ---------------------------------------
+
+class Encoder(nn.Module):
+
+    def __init__(self, cin):
+
+        super().__init__()
+
+        hidden = 24
+
+        self.reduce = TemporalReduce(cin, hidden)
+
+        self.block1 = DWBlock(hidden)
+        self.block2 = DWBlock(hidden)
+
+        self.drop = nn.Dropout(0.4)
+
+    def forward(self, x):
+
+        x = self.reduce(x)
+
+        x = self.block1(x)
+        x = self.block2(x)
+
+        x = self.drop(x)
 
         return x
 
 
-# -------------------------------------------------
-# Global temporal pooling
-# -------------------------------------------------
+# ---------------------------------------
+# statistical pooling
+# ---------------------------------------
 
-class GlobalPool(nn.Module):
+class StatPool(nn.Module):
 
     def forward(self, x):
-
-        # (B,C,T) → (B,C)
 
         mean = x.mean(-1)
         std = x.std(-1)
@@ -67,9 +110,9 @@ class GlobalPool(nn.Module):
         return torch.cat([mean, std], dim=1)
 
 
-# -------------------------------------------------
-# Fusion module
-# -------------------------------------------------
+# ---------------------------------------
+# fusion
+# ---------------------------------------
 
 class Fusion(nn.Module):
 
@@ -82,18 +125,16 @@ class Fusion(nn.Module):
             nn.Sigmoid()
         )
 
-    def forward(self, eeg, fnirs):
+    def forward(self, a, b):
 
-        g = self.gate(torch.cat([eeg, fnirs], dim=1))
+        g = self.gate(torch.cat([a, b], dim=1))
 
-        fused = g * eeg + (1 - g) * fnirs
-
-        return fused
+        return g * a + (1 - g) * b
 
 
-# -------------------------------------------------
-# Classifier
-# -------------------------------------------------
+# ---------------------------------------
+# classifier
+# ---------------------------------------
 
 class Classifier(nn.Module):
 
@@ -108,9 +149,9 @@ class Classifier(nn.Module):
         return self.fc(x)
 
 
-# -------------------------------------------------
-# Main model
-# -------------------------------------------------
+# ---------------------------------------
+# model
+# ---------------------------------------
 
 class Model(nn.Module):
 
@@ -118,28 +159,21 @@ class Model(nn.Module):
 
         super().__init__()
 
-        hidden = 32
+        self.eeg_encoder = Encoder(28)
+        self.fnirs_encoder = Encoder(72)
 
-        self.eeg_encoder = TinyEncoder(28, hidden)
-        self.fnirs_encoder = TinyEncoder(72, hidden)
+        self.pool = StatPool()
 
-        self.pool = GlobalPool()
+        emb = 48  # hidden*2
 
-        emb_dim = hidden * 2
+        self.fusion = Fusion(emb)
 
-        self.fusion = Fusion(emb_dim)
-
-        self.cls_eeg = Classifier(emb_dim)
-        self.cls_fnirs = Classifier(emb_dim)
-        self.cls_fusion = Classifier(emb_dim)
+        self.cls_eeg = Classifier(emb)
+        self.cls_fnirs = Classifier(emb)
+        self.cls_fusion = Classifier(emb)
 
 
     def forward(self, eeg, fnirs):
-
-        if self.training:
-
-            eeg = augment_signal(eeg)
-            fnirs = augment_signal(fnirs)
 
         eeg = self.eeg_encoder(eeg)
         fnirs = self.fnirs_encoder(fnirs)
@@ -157,9 +191,9 @@ class Model(nn.Module):
 
             "logits": fusion_logits,
 
+            "fusion_logits": fusion_logits,
             "eeg_logits": eeg_logits,
             "fnirs_logits": fnirs_logits,
-            "fusion_logits": fusion_logits,
 
             "eeg_embed": eeg_emb,
             "fnirs_embed": fnirs_emb,
