@@ -236,6 +236,11 @@ class CrossModalFusion(nn.Module):
         self.norm = nn.GroupNorm(8,c)
 
     def forward(self,eeg,fnirs):
+        if self.training:
+            mask = torch.rand(eeg.shape[0],1,1,device=eeg.device)
+
+            eeg = eeg * (mask > 0.2)
+            fnirs = fnirs * (mask < 0.8)
 
         g = self.gate(torch.cat([eeg,fnirs],dim=1))
         # (B,96,T)
@@ -250,29 +255,24 @@ class CrossModalFusion(nn.Module):
 
 
 
-
 class TemporalProjector(nn.Module):
 
     def __init__(self,c=96):
-
         super().__init__()
 
-        self.conv = nn.Conv1d(c,48,3,padding=1)
+        self.conv = nn.Conv1d(c,32,3,padding=1)
+        self.drop = nn.Dropout(0.3)
 
-        self.attn = nn.Conv1d(48,1,1)
+        self.attn = nn.Conv1d(32,1,1)
 
     def forward(self,x):
 
-        # x (B,96,T)
-
         x = self.conv(x)
-        # (B,48,T)
+        x = self.drop(x)
 
         w = torch.softmax(self.attn(x),dim=-1)
-        # (B,1,T)
 
         x = (x*w).sum(-1)
-        # (B,48)
 
         return x
 
@@ -353,6 +353,8 @@ class Model(nn.Module):
 
         emb = 48
 
+        self.classifier_eeg = Classifier(emb)
+        self.classifier_fnirs = Classifier(emb)
         self.classifier = Classifier(emb)
 
         self.session_classifier = nn.Sequential(
@@ -381,6 +383,10 @@ class Model(nn.Module):
         eeg_final = self.align(eeg_final)
         fnirs_final = self.align(fnirs_final)
 
+        if self.training:
+            eeg_final = eeg_final + torch.randn_like(eeg_final)*0.02
+            fnirs_final = fnirs_final + torch.randn_like(fnirs_final)*0.02
+
         # (B,192,120)
 
         # --------------------------------
@@ -404,8 +410,8 @@ class Model(nn.Module):
         # classification
         # --------------------------------
 
-        eeg_logits = self.classifier(eeg_embed)
-        fnirs_logits = self.classifier(fnirs_embed)
+        eeg_logits = self.classifier_eeg(eeg_embed)
+        fnirs_logits = self.classifier_fnirs(fnirs_embed)
         fusion_logits = self.classifier(fusion_embed)
 
         # --------------------------------
