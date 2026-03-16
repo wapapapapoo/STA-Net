@@ -1,44 +1,44 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
 from eval import evaluate
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-
 class LossModule(nn.Module):
 
-    def __init__(self, align_w=0.2):
+    def __init__(self):
 
         super().__init__()
 
         self.ce = nn.CrossEntropyLoss()
 
-        self.align_w = align_w
-
     def forward(self, output, label):
-
-        logits = output["logits"]
-
-        eeg_feat = output["eeg_feat"]
-
-        fnirs_feat = output["fnirs_feat"]
 
         target = torch.argmax(label, dim=1)
 
-        cls = self.ce(logits, target)
+        loss_main = (
+            self.ce(output["eeg_logits"], target) +
+            self.ce(output["fnirs_logits"], target) +
+            self.ce(output["fusion_logits"], target)
+        )
 
-        align = F.mse_loss(eeg_feat, fnirs_feat)
+        trial_group = output["trial_group"]
 
-        return cls + self.align_w * align
+        loss_session = (
+            self.ce(output["session_eeg"], trial_group) +
+            self.ce(output["session_fnirs"], trial_group) +
+            self.ce(output["session_fusion"], trial_group)
+        )
+
+        loss = loss_main + 0.3 * loss_session
+
+        return loss
 
 
 
-
-def train_epoch(model, loader, optimizer, loss_fn):
+def train_epoch(model, loader, optimizer, loss_fn, args):
 
     model.train()
 
@@ -49,11 +49,20 @@ def train_epoch(model, loader, optimizer, loss_fn):
         eeg = batch["eeg_input"].to(DEVICE)
         fnirs = batch["fnirs_input"].to(DEVICE)
         label = batch["label"].to(DEVICE)
+        trial_label = batch["trial_label"].to(DEVICE)
 
         optimizer.zero_grad()
 
+        # forward
         output = model(eeg, fnirs)
 
+        # 计算 trial group
+        trial_group = trial_label // args["TRAIL_GROUP"]
+
+        # 放进 output
+        output["trial_group"] = trial_group
+
+        # loss
         loss = loss_fn(
             output,
             label
@@ -71,7 +80,6 @@ def train_epoch(model, loader, optimizer, loss_fn):
         total_loss += loss.item()
 
     return total_loss / len(loader)
-
 
 
 
@@ -132,7 +140,8 @@ def train(model, train_loader, val_loader, args):
             model,
             train_loader,
             optimizer,
-            loss_fn
+            loss_fn,
+            args
         )
 
         train_acc = evaluate(model, train_loader)

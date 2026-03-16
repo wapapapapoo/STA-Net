@@ -123,6 +123,8 @@ def build_split(eeg, fnirs, label, session, n_trials=60, windows_per_trial=10):
 
 def main():
     args = {
+        'TRAIL_GROUP': 10,
+        'TRAIL_GROUP_AMOUNT': 40,
     }
     print("; model sparams")
     for key, value in args:
