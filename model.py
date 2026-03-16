@@ -38,15 +38,20 @@ class EEGEncoder(nn.Module):
             nn.Conv1d(28, 64, 7, padding=3),
             nn.BatchNorm1d(64),
             nn.GELU(),
+            nn.Dropout(0.25),
 
             nn.Conv1d(64, 128, 5, padding=2),
             nn.BatchNorm1d(128),
             nn.GELU(),
+            nn.Dropout(0.25),
 
             nn.AdaptiveAvgPool1d(1)
         )
 
-        self.fc = nn.Linear(128, embed_dim)
+        self.fc = nn.Sequential(
+            nn.Linear(128, embed_dim),
+            nn.Dropout(0.3)
+        )
 
     def forward(self, x):
 
@@ -70,15 +75,20 @@ class FNIRSEncoder(nn.Module):
             nn.Conv1d(72, 128, 5, padding=2),
             nn.BatchNorm1d(128),
             nn.GELU(),
+            nn.Dropout(0.25),
 
             nn.Conv1d(128, 128, 5, padding=2),
             nn.BatchNorm1d(128),
             nn.GELU(),
+            nn.Dropout(0.25),
 
             nn.AdaptiveAvgPool1d(1)
         )
 
-        self.fc = nn.Linear(128, embed_dim)
+        self.fc = nn.Sequential(
+            nn.Linear(128, embed_dim),
+            nn.Dropout(0.3)
+        )
 
     def forward(self, x):
 
@@ -104,20 +114,17 @@ class EEGFNIRSAttention(nn.Module):
 
     def forward(self, eeg_embed, fnirs_raw):
 
-        # eeg_embed (B,E)
-        # fnirs_raw (B,72,T)
+        q = self.query(eeg_embed).unsqueeze(1)
 
-        q = self.query(eeg_embed).unsqueeze(1)   # B 1 E
-
-        k = self.key(fnirs_raw).transpose(1,2)   # B T E
+        k = self.key(fnirs_raw).transpose(1,2)
 
         attn = torch.matmul(q, k.transpose(1,2)) * self.scale
 
         attn = torch.softmax(attn, dim=-1)
 
-        v = fnirs_raw.transpose(1,2)             # B T C
+        v = fnirs_raw.transpose(1,2)
 
-        out = torch.matmul(attn, v)              # B 1 C
+        out = torch.matmul(attn, v)
 
         out = out.squeeze(1)
 
@@ -137,8 +144,10 @@ class FusionModule(nn.Module):
 
             nn.Linear(embed_dim * 2, 256),
             nn.GELU(),
+            nn.Dropout(0.4),
 
-            nn.Linear(256, embed_dim)
+            nn.Linear(256, embed_dim),
+            nn.Dropout(0.4)
         )
 
     def forward(self, eeg, fnirs):
@@ -169,7 +178,12 @@ class Model(nn.Module):
 
         # shared classifier
 
-        self.classifier = nn.Linear(embed_dim, 2)
+        self.classifier = nn.Sequential(
+            nn.Linear(embed_dim, 64),
+            nn.GELU(),
+            nn.Dropout(0.5),
+            nn.Linear(64, 2)
+        )
 
         # session classifier
 
@@ -177,6 +191,7 @@ class Model(nn.Module):
 
             nn.Linear(embed_dim, 128),
             nn.GELU(),
+            nn.Dropout(0.3),
 
             nn.Linear(128, args['TRAIL_GROUP_AMOUNT'])
         )
