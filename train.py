@@ -126,7 +126,7 @@ def train(model, train_loader, val_loader, args):
 
     loss_fn = LossModule()
 
-    for epoch in range(20):
+    for epoch in range(50):
 
         train_loss = train_epoch(
             model,
