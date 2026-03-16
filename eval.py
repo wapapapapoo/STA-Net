@@ -192,8 +192,8 @@ def evaluate(model, loader):
 # =========================================================
 
 def main():
-
     subject_list = sorted(os.listdir(DATA_PATH))
+    all_results = []
 
     for subject in subject_list:
 
@@ -242,6 +242,8 @@ def main():
 
             print("Test:", test_acc)
 
+            all_results.append((subject, session, test_acc))
+
             with open(RESULT_FILE, "a") as f:
 
                 f.write(
@@ -252,6 +254,24 @@ def main():
                     }) + "\n"
                 )
 
+    # ==============================
+    # Summary
+    # ==============================
 
-if __name__ == "__main__":
-    main()
+    print("\n===== FINAL RESULTS =====")
+
+    subject_scores = {}
+
+    for subject, fold, acc in all_results:
+        if subject not in subject_scores:
+            subject_scores[subject] = []
+        subject_scores[subject].append(acc)
+
+    all_acc = []
+
+    for subject in subject_scores:
+        scores = subject_scores[subject]
+        mean_acc = np.mean(scores)
+        all_acc.extend(scores)
+        print(f"{subject} mean_acc = {mean_acc:.4f} folds = {scores}")
+    print("\nOverall mean accuracy:", np.mean(all_acc))
