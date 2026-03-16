@@ -3,29 +3,44 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+# =====================================================
+# EEG ENCODER
+# =====================================================
+
 class EEGEncoder(nn.Module):
+
     def __init__(self):
         super().__init__()
 
-        # temporal feature extraction
-        self.temporal = nn.Sequential(
-            nn.Conv1d(28, 64, kernel_size=25, padding=12),
+        self.net = nn.Sequential(
+
+            # block1
+            nn.Conv1d(28, 32, kernel_size=25, padding=12),
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+
+            nn.MaxPool1d(2),   # 600 → 300
+
+            # block2
+            nn.Conv1d(32, 64, kernel_size=15, padding=7),
             nn.BatchNorm1d(64),
             nn.ReLU(),
 
-            nn.Conv1d(64, 64, kernel_size=15, padding=7),
+            nn.MaxPool1d(2),   # 300 → 150
+
+            # block3
+            nn.Conv1d(64, 64, kernel_size=7, padding=3),
             nn.BatchNorm1d(64),
             nn.ReLU(),
         )
 
-        # channel mixing
-        self.channel_mix = nn.Conv1d(64, 64, kernel_size=1)
+        self.channel_mix = nn.Conv1d(64, 64, 1)
 
         self.pool = nn.AdaptiveAvgPool1d(1)
 
     def forward(self, x):
 
-        x = self.temporal(x)
+        x = self.net(x)
 
         x = self.channel_mix(x)
 
@@ -33,22 +48,28 @@ class EEGEncoder(nn.Module):
 
         return x.squeeze(-1)
 
+
+# =====================================================
+# FNIRS ENCODER
+# =====================================================
 
 class FNIRSEncoder(nn.Module):
+
     def __init__(self):
         super().__init__()
 
         self.temporal = nn.Sequential(
-            nn.Conv1d(72, 64, kernel_size=15, padding=7),
-            nn.BatchNorm1d(64),
+
+            nn.Conv1d(72, 32, 9, padding=4),
+            nn.BatchNorm1d(32),
             nn.ReLU(),
 
-            nn.Conv1d(64, 64, kernel_size=9, padding=4),
+            nn.Conv1d(32, 64, 7, padding=3),
             nn.BatchNorm1d(64),
             nn.ReLU(),
         )
 
-        self.channel_mix = nn.Conv1d(64, 64, kernel_size=1)
+        self.channel_mix = nn.Conv1d(64, 64, 1)
 
         self.pool = nn.AdaptiveAvgPool1d(1)
 
@@ -62,6 +83,10 @@ class FNIRSEncoder(nn.Module):
 
         return x.squeeze(-1)
 
+
+# =====================================================
+# MODEL
+# =====================================================
 
 class Model(nn.Module):
 
@@ -71,18 +96,18 @@ class Model(nn.Module):
         self.eeg_encoder = EEGEncoder()
         self.fnirs_encoder = FNIRSEncoder()
 
-        # modality gating
+        # modality gate
         self.gate = nn.Sequential(
-            nn.Linear(128, 64),
+            nn.Linear(128, 32),
             nn.ReLU(),
-            nn.Linear(64, 2),
+            nn.Linear(32, 2),
             nn.Softmax(dim=1)
         )
 
         self.classifier = nn.Sequential(
             nn.Linear(128, 64),
             nn.ReLU(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.4),
             nn.Linear(64, 2)
         )
 

@@ -26,9 +26,19 @@ class EEGFNIRSDataset(Dataset):
 
         N = fnirs.shape[0]
 
-        # fNIRS reshape
-        fnirs = fnirs.reshape(N, 11, 36 * 2, 30)
-        fnirs = fnirs.transpose(0,2,1,3).reshape(N, 72, 11 * 30)
+        # fnirs: (N,11,36,30,2)
+
+        # 1. remove overlap windows
+        fnirs = fnirs[:, ::3]              # (N,4,36,30,2)
+
+        # 2. merge HbO HbR
+        fnirs = fnirs.reshape(N, 4, 36*2, 30)   # (N,4,72,30)
+
+        # 3. move channel forward
+        fnirs = fnirs.transpose(0,2,1,3)        # (N,72,4,30)
+
+        # 4. flatten time
+        fnirs = fnirs.reshape(N, 72, 4*30)      # (N,72,120)
 
         # trial id
         trial_id = np.arange(N) // windows_per_trial
@@ -49,6 +59,9 @@ class EEGFNIRSDataset(Dataset):
             "label": self.label[idx],
             "trial_label": self.trial_label[idx]
         }
+    
+
+
 
 # =========================================================
 # Split

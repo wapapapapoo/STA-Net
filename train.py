@@ -26,7 +26,7 @@ def train_epoch(model, loader, optimizer, criterion, args):
     return total_loss / len(loader)
 
 def train(model, train_loader, val_loader, args):
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
     criterion = nn.CrossEntropyLoss()
 
     for epoch in range(20):
