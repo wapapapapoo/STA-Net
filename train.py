@@ -53,12 +53,12 @@ def train_epoch(model, loader, optimizer, criterion, args):
         neg = sim[~mask].mean()
         contrast = neg - pos
 
+        unique_trial, inverse = torch.unique(trial, return_inverse=True)
         trial_mean = []
-        for t in torch.unique(trial):
-            trial_mean.append(feat[trial == t].mean(0))
-
+        for i in range(len(unique_trial)):
+            trial_mean.append(feat[inverse == i].mean(0))
         trial_mean = torch.stack(trial_mean)
-        cons_loss = ((feat - trial_mean[trial])**2).mean()
+        cons_loss = ((feat - trial_mean[inverse])**2).mean()
 
         loss = cls_loss + 0.1 * cons_loss + 0.05 * contrast
         loss.backward()
