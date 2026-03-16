@@ -82,7 +82,7 @@ def train_epoch(model, loader, optimizer, loss_fn, args):
             )
         ) / 2
 
-        loss = ce_loss + 0.5 * kl
+        loss = ce_loss + kl
 
         loss.backward()
 
@@ -90,6 +90,10 @@ def train_epoch(model, loader, optimizer, loss_fn, args):
             model.parameters(),
             1.
         )
+
+        for p in model.parameters():
+            if p.grad is not None:
+                p.grad += 0.001 * torch.randn_like(p.grad)
 
         optimizer.step()
         total_loss += loss.item()
