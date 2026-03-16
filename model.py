@@ -21,7 +21,7 @@ class DSBlock(nn.Module):
             kernel_size=1
         )
 
-        self.bn = nn.BatchNorm1d(cout)
+        self.bn = nn.GroupNorm(8, cout)
         self.act = nn.GELU()
 
         self.drop = nn.Dropout1d(drop)
@@ -110,10 +110,22 @@ class EEGFNIRSAlign(nn.Module):
 
         self.drop = nn.Dropout(drop)
 
+        self.norm_eeg = nn.LayerNorm(c)
+        self.norm_fnirs = nn.LayerNorm(c)
+
     def forward(self,eeg,fnirs):
 
         # eeg   (B,C,Te)
         # fnirs (B,C,Tf)
+
+        eeg = eeg.transpose(1,2)
+        fnirs = fnirs.transpose(1,2)
+
+        eeg = self.norm_eeg(eeg)
+        fnirs = self.norm_fnirs(fnirs)
+
+        eeg = eeg.transpose(1,2)
+        fnirs = fnirs.transpose(1,2)
 
         q = self.q(eeg)
         k = self.k(fnirs)
@@ -283,35 +295,28 @@ class CrossModalFusion(nn.Module):
 
 
 
-
 class TemporalProjector(nn.Module):
-
     def __init__(self,c=192):
-
         super().__init__()
-
         self.net = nn.Sequential(
 
-            nn.Conv1d(c,c,5,padding=2),
+            nn.Conv1d(c,128,3,padding=1),
             nn.GELU(),
-            nn.Dropout1d(0.4),
+            nn.Dropout1d(0.25),
 
-            nn.Conv1d(c,c,5,padding=2),
+            nn.Conv1d(128,128,3,padding=1),
             nn.GELU(),
-            nn.Dropout1d(0.4),
 
-            nn.Conv1d(c,c,1)
+            nn.AdaptiveAvgPool1d(1)
         )
 
     def forward(self,x):
-
+        # x (B,192,120)
         x = self.net(x)
-
-        x = torch.flatten(x,1)
-
+        # (B,128,1)
+        x = x.squeeze(-1)
+        # (B,128)
         return x
-
-
 
 
 
@@ -319,27 +324,22 @@ class TemporalProjector(nn.Module):
 
 class Classifier(nn.Module):
 
-    def __init__(self,in_dim):
+    def __init__(self,in_dim=128):
 
         super().__init__()
 
         self.net = nn.Sequential(
 
-            nn.Linear(in_dim,512),
+            nn.Linear(in_dim,64),
             nn.GELU(),
-            nn.Dropout(0.6),
+            nn.Dropout(0.4),
 
-            nn.Linear(512,128),
-            nn.GELU(),
-            nn.Dropout(0.5),
-
-            nn.Linear(128,2)
+            nn.Linear(64,2)
         )
 
     def forward(self,x):
 
-        return self.net(x)
-    
+        return self.net(x)    
 
 
 
@@ -389,17 +389,15 @@ class Model(nn.Module):
         self.proj_fnirs = TemporalProjector(192)
         self.proj_fusion = TemporalProjector(192)
 
-        emb = 192*120
+        emb = 128
 
         self.classifier = Classifier(emb)
 
         self.session_classifier = nn.Sequential(
-
-            nn.Linear(emb,256),
+            nn.Linear(128,64),
             nn.GELU(),
-            nn.Dropout(0.3),
-
-            nn.Linear(256,args['TRAIL_GROUP_AMOUNT'])
+            nn.Dropout(0.2),
+            nn.Linear(64,args['TRAIL_GROUP_AMOUNT'])
         )
 
     def forward(self,eeg,fnirs):
