@@ -127,8 +127,8 @@ def main():
         'TRAIL_GROUP_AMOUNT': 40,
     }
     print("; model sparams")
-    for key, value in args:
-        print(f"; {key}: {value}")
+    for key in args:
+        print(f"; {key}: {args[key]}")
 
     model_example = Model(args).to(DEVICE)
     total_params = 0
