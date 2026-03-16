@@ -352,18 +352,18 @@ class Model(nn.Module):
 
         self.align = TemporalAlign(120)
 
-        self.fusion = CrossModalFusion(192)
+        self.fusion = CrossModalFusion(96)
 
-        self.proj_eeg = TemporalProjector(192)
-        self.proj_fnirs = TemporalProjector(192)
-        self.proj_fusion = TemporalProjector(192)
+        self.proj_eeg = TemporalProjector(96)
+        self.proj_fnirs = TemporalProjector(96)
+        self.proj_fusion = TemporalProjector(96)
 
-        emb = 128
+        emb = 48
 
         self.classifier = Classifier(emb)
 
         self.session_classifier = nn.Sequential(
-            nn.Linear(128,64),
+            nn.Linear(emb,64),
             nn.GELU(),
             nn.Dropout(0.2),
             nn.Linear(64,args['TRAIL_GROUP_AMOUNT'])
