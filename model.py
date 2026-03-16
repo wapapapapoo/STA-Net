@@ -30,26 +30,26 @@ def grad_reverse(x, alpha=1.0):
 
 class EEGEncoder(nn.Module):
 
-    def __init__(self, embed_dim=64):
+    def __init__(self, embed_dim=128):
         super().__init__()
 
         self.net = nn.Sequential(
 
-            nn.Conv1d(28, 32, 7, padding=3),
-            nn.BatchNorm1d(32),
-            nn.GELU(),
-            nn.Dropout(0.2),
-
-            nn.Conv1d(32, 64, 5, padding=2),
+            nn.Conv1d(28, 64, 7, padding=3),
             nn.BatchNorm1d(64),
             nn.GELU(),
-            nn.Dropout(0.2),
+            nn.Dropout(0.25),
+
+            nn.Conv1d(64, 128, 5, padding=2),
+            nn.BatchNorm1d(128),
+            nn.GELU(),
+            nn.Dropout(0.25),
 
             nn.AdaptiveAvgPool1d(1)
         )
 
         self.fc = nn.Sequential(
-            nn.Linear(64, embed_dim),
+            nn.Linear(128, embed_dim),
             nn.Dropout(0.3)
         )
 
@@ -67,26 +67,26 @@ class EEGEncoder(nn.Module):
 
 class FNIRSEncoder(nn.Module):
 
-    def __init__(self, embed_dim=64):
+    def __init__(self, embed_dim=128):
         super().__init__()
 
         self.net = nn.Sequential(
 
-            nn.Conv1d(72, 64, 5, padding=2),
-            nn.BatchNorm1d(64),
+            nn.Conv1d(72, 128, 5, padding=2),
+            nn.BatchNorm1d(128),
             nn.GELU(),
-            nn.Dropout(0.2),
+            nn.Dropout(0.25),
 
-            nn.Conv1d(64, 64, 5, padding=2),
-            nn.BatchNorm1d(64),
+            nn.Conv1d(128, 128, 5, padding=2),
+            nn.BatchNorm1d(128),
             nn.GELU(),
-            nn.Dropout(0.2),
+            nn.Dropout(0.25),
 
             nn.AdaptiveAvgPool1d(1)
         )
 
         self.fc = nn.Sequential(
-            nn.Linear(64, embed_dim),
+            nn.Linear(128, embed_dim),
             nn.Dropout(0.3)
         )
 
@@ -103,7 +103,7 @@ class FNIRSEncoder(nn.Module):
 
 class EEGFNIRSAttention(nn.Module):
 
-    def __init__(self, embed_dim=64, fnirs_time=120):
+    def __init__(self, embed_dim=128, fnirs_time=120):
 
         super().__init__()
 
@@ -137,16 +137,16 @@ class EEGFNIRSAttention(nn.Module):
 
 class FusionModule(nn.Module):
 
-    def __init__(self, embed_dim=64):
+    def __init__(self, embed_dim=128):
         super().__init__()
 
         self.net = nn.Sequential(
 
-            nn.Linear(embed_dim * 2, 128),
+            nn.Linear(embed_dim * 2, 256),
             nn.GELU(),
             nn.Dropout(0.4),
 
-            nn.Linear(128, embed_dim),
+            nn.Linear(256, embed_dim),
             nn.Dropout(0.4)
         )
 
@@ -179,19 +179,21 @@ class Model(nn.Module):
         # shared classifier
 
         self.classifier = nn.Sequential(
-            nn.Linear(embed_dim, 32),
+            nn.Linear(embed_dim, 64),
             nn.GELU(),
             nn.Dropout(0.5),
-            nn.Linear(32, 2)
+            nn.Linear(64, 2)
         )
 
         # session classifier
 
         self.session_classifier = nn.Sequential(
-            nn.Linear(embed_dim, 64),
+
+            nn.Linear(embed_dim, 128),
             nn.GELU(),
             nn.Dropout(0.3),
-            nn.Linear(64, args['TRAIL_GROUP_AMOUNT'])
+
+            nn.Linear(128, args['TRAIL_GROUP_AMOUNT'])
         )
 
     def forward(self, eeg, fnirs):
