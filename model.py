@@ -10,16 +10,18 @@ import random
 
 def augment_signal(x):
 
+    x = x.clone()
+
     if random.random() < 0.5:
         x = x + torch.randn_like(x) * 0.05
 
     if random.random() < 0.5:
-        shift = torch.randint(-15, 15, (1,)).item()
+        shift = torch.randint(-15, 15, (1,), device=x.device).item()
         x = torch.roll(x, int(shift), dims=-1)
 
     if random.random() < 0.3:
-        ch = torch.rand(x.shape[1], device=x.device) < 0.2
-        x[:, ch, :] = 0
+        mask = (torch.rand(x.shape[0], x.shape[1], 1, device=x.device) > 0.2)
+        x = x * mask
 
     return x
 
