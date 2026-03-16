@@ -159,15 +159,7 @@ class Classifier(nn.Module):
         super().__init__()
 
         self.net = nn.Sequential(
-
-            nn.Linear(dim,64),
-            nn.GELU(),
-            nn.Dropout(0.5),
-
-            nn.Linear(64,32),
-            nn.GELU(),
-
-            nn.Linear(32,2)
+            nn.Linear(dim, 2),
         )
 
     def forward(self,x):
