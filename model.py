@@ -4,60 +4,40 @@ import torch.nn.functional as F
 
 
 # =====================================================
-# EEG Encoder (EEGNet style)
+# EEG Encoder
+# input : (B,28,600)
+# output: (B,64)
 # =====================================================
 
 class EEGEncoder(nn.Module):
 
     def __init__(self):
-
         super().__init__()
 
-        self.temporal = nn.Conv2d(
-            1,
-            16,
-            (1,15),
-            padding=(0,7),
-            bias=False
+        self.temporal = nn.Sequential(
+
+            nn.Conv1d(28, 32, 15, padding=7),
+            nn.BatchNorm1d(32),
+            nn.GELU(),
+
+            nn.MaxPool1d(2),
+
+            nn.Conv1d(32, 64, 9, padding=4),
+            nn.BatchNorm1d(64),
+            nn.GELU(),
+
+            nn.MaxPool1d(2),
         )
 
-        self.bn1 = nn.BatchNorm2d(16)
-
-        # depthwise spatial conv
-        self.spatial = nn.Conv2d(
-            16,
-            32,
-            (28,1),
-            groups=16,
-            bias=False
-        )
-
-        self.bn2 = nn.BatchNorm2d(32)
-
-        self.pool = nn.AvgPool2d((1,4))
-
-        self.act = nn.ELU()
+        self.pool = nn.AdaptiveAvgPool1d(1)
 
     def forward(self, x):
 
-        # x: (B,28,600)
-
-        x = x.unsqueeze(1)  # (B,1,28,600)
-
         x = self.temporal(x)
-        x = self.bn1(x)
-        x = self.act(x)
-
-        x = self.spatial(x)
-        x = self.bn2(x)
-        x = self.act(x)
 
         x = self.pool(x)
 
-        x = x.mean(dim=-1)
-        x = x.squeeze(-1)
-
-        return x
+        return x.squeeze(-1)
 
 
 # =====================================================
@@ -67,7 +47,6 @@ class EEGEncoder(nn.Module):
 class ChannelAttention(nn.Module):
 
     def __init__(self, channels):
-
         super().__init__()
 
         self.fc1 = nn.Linear(channels, channels // 4)
@@ -80,7 +59,6 @@ class ChannelAttention(nn.Module):
         w = x.mean(dim=2)
 
         w = F.relu(self.fc1(w))
-
         w = torch.sigmoid(self.fc2(w))
 
         return x * w.unsqueeze(-1)
@@ -88,6 +66,8 @@ class ChannelAttention(nn.Module):
 
 # =====================================================
 # fNIRS Encoder
+# input : (B,72,120)
+# output: (B,64)
 # =====================================================
 
 class FNIRSEncoder(nn.Module):
@@ -96,23 +76,16 @@ class FNIRSEncoder(nn.Module):
 
         super().__init__()
 
-        self.conv1 = nn.Conv1d(
-            72,
-            32,
-            7,
-            padding=3
+        self.conv = nn.Sequential(
+
+            nn.Conv1d(72, 32, 7, padding=3),
+            nn.BatchNorm1d(32),
+            nn.GELU(),
+
+            nn.Conv1d(32, 64, 5, padding=2),
+            nn.BatchNorm1d(64),
+            nn.GELU(),
         )
-
-        self.bn1 = nn.BatchNorm1d(32)
-
-        self.conv2 = nn.Conv1d(
-            32,
-            64,
-            5,
-            padding=2
-        )
-
-        self.bn2 = nn.BatchNorm1d(64)
 
         self.att = ChannelAttention(64)
 
@@ -120,13 +93,7 @@ class FNIRSEncoder(nn.Module):
 
     def forward(self, x):
 
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = F.gelu(x)
-
-        x = self.conv2(x)
-        x = self.bn2(x)
-        x = F.gelu(x)
+        x = self.conv(x)
 
         x = self.att(x)
 
@@ -139,7 +106,7 @@ class FNIRSEncoder(nn.Module):
 # Shared Representation
 # =====================================================
 
-class SharedRepresentation(nn.Module):
+class SharedBlock(nn.Module):
 
     def __init__(self, dim=64):
 
@@ -169,11 +136,7 @@ class ProjectionHead(nn.Module):
 
         self.bn = nn.BatchNorm1d(dim)
 
-        self.fc = nn.Linear(
-            dim,
-            proj_dim,
-            bias=False
-        )
+        self.fc = nn.Linear(dim, proj_dim, bias=False)
 
     def forward(self, x):
 
@@ -192,53 +155,42 @@ class CrossModalPredictor(nn.Module):
 
         super().__init__()
 
-        self.fc1 = nn.Linear(dim, dim)
+        self.net = nn.Sequential(
 
-        self.fc2 = nn.Linear(dim, dim)
+            nn.Linear(dim, dim),
+            nn.GELU(),
+
+            nn.Linear(dim, dim)
+        )
 
     def forward(self, x):
 
-        x = F.gelu(self.fc1(x))
-
-        return self.fc2(x)
+        return self.net(x)
 
 
 # =====================================================
-# Cross Attention Fusion
+# Fusion
 # =====================================================
 
-class CrossAttentionFusion(nn.Module):
+class Fusion(nn.Module):
 
-    def __init__(self, dim=64):
+    def __init__(self):
 
         super().__init__()
 
-        self.q = nn.Linear(dim, dim)
+        self.net = nn.Sequential(
 
-        self.k = nn.Linear(dim, dim)
+            nn.Linear(128, 64),
+            nn.GELU(),
 
-        self.v = nn.Linear(dim, dim)
-
-        self.scale = dim ** -0.5
+            nn.Dropout(0.3)
+        )
 
     def forward(self, eeg, fnirs):
 
-        q = self.q(eeg)
+        x = torch.cat([eeg, fnirs], dim=1)
 
-        k = self.k(fnirs)
-
-        v = self.v(fnirs)
-
-        score = (q * k).sum(-1, keepdim=True)
-
-        attn = torch.softmax(
-            score * self.scale,
-            dim=0
-        )
-
-        fused = eeg + attn * v
-
-        return fused
+        return self.net(x)
 
 
 # =====================================================
@@ -255,7 +207,7 @@ class Model(nn.Module):
 
         self.fnirs_encoder = FNIRSEncoder()
 
-        self.shared = SharedRepresentation()
+        self.shared = SharedBlock()
 
         self.eeg_proj = ProjectionHead()
 
@@ -263,12 +215,9 @@ class Model(nn.Module):
 
         self.cross_predict = CrossModalPredictor()
 
-        self.fusion = CrossAttentionFusion()
+        self.fusion = Fusion()
 
-        self.classifier = nn.Linear(
-            64,
-            2
-        )
+        self.classifier = nn.Linear(64, 2)
 
     def forward(self, eeg, fnirs):
 
