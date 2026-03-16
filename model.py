@@ -4,34 +4,39 @@ import torch.nn.functional as F
 
 class DSBlock(nn.Module):
 
-    def __init__(self, cin, cout, k, stride=1, drop=0.15, drop_path=0.1):
+    def __init__(self, cin, cout, k, stride=1, drop=0.15):
         super().__init__()
-        self.depth = nn.Conv1d(
+
+        self.dw = nn.Conv1d(
             cin, cin,
             kernel_size=k,
-            padding=k//2,
             stride=stride,
+            padding=k//2,
             groups=cin
         )
-        self.point = nn.Conv1d(cin, cout, 1)
-        self.bn = nn.GroupNorm(8, cout)
+
+        self.pw = nn.Conv1d(cin, cout, 1)
+
+        self.norm = nn.GroupNorm(8, cout)
         self.act = nn.GELU()
         self.drop = nn.Dropout1d(drop)
-        self.drop_path = drop_path
 
     def forward(self,x):
-        if self.training and torch.rand(1) < self.drop_path:
-            return x
-        # x (B,C,T)
-        x = self.depth(x)   # (B,C,T)
-        x = self.point(x)   # (B,Cout,T)
 
-        x = self.bn(x)
+        # x (B,C,T)
+
+        x = self.dw(x)
+        # (B,C,T)
+
+        x = self.pw(x)
+        # (B,Cout,T)
+
+        x = self.norm(x)
         x = self.act(x)
 
         x = self.drop(x)
-        return x
 
+        return x
 
 
 
@@ -39,30 +44,49 @@ class DSBlock(nn.Module):
 class TemporalASPP(nn.Module):
 
     def __init__(self, cin, cout):
+
         super().__init__()
+
         self.b1 = nn.Conv1d(cin, cout, 1)
-        self.b2 = nn.Conv1d(cin, cout, 3, padding=2, dilation=2)
-        self.b3 = nn.Conv1d(cin, cout, 3, padding=6, dilation=6)
-        self.proj = nn.Conv1d(cout*3, cout, 1)
-        self.drop = nn.Dropout1d(0.2)
+
+        self.b2 = nn.Conv1d(
+            cin, cout,
+            3,
+            padding=2,
+            dilation=2
+        )
+
+        self.b3 = nn.Conv1d(
+            cin, cout,
+            3,
+            padding=6,
+            dilation=6
+        )
+
+        self.project = nn.Conv1d(cout*3, cout, 1)
 
     def forward(self,x):
+
+        # x (B,C,T)
+
         b1 = self.b1(x)
         b2 = self.b2(x)
         b3 = self.b3(x)
 
         x = torch.cat([b1,b2,b3],dim=1)
-        x = self.proj(x)
-        x = self.drop(x)
-        return x
+        # (B,3C,T)
 
+        x = self.project(x)
+        # (B,C,T)
+
+        return x
 
 
 
 
 class EEGFNIRSAlign(nn.Module):
 
-    def __init__(self, c, drop=0.2):
+    def __init__(self,c):
 
         super().__init__()
 
@@ -70,49 +94,39 @@ class EEGFNIRSAlign(nn.Module):
         self.k = nn.Conv1d(c,c,1)
         self.v = nn.Conv1d(c,c,1)
 
+        self.norm_eeg = nn.GroupNorm(8,c)
+        self.norm_fnirs = nn.GroupNorm(8,c)
+
         self.scale = c ** -0.5
-
-        self.drop = nn.Dropout(drop)
-
-        self.norm_eeg = nn.LayerNorm(c)
-        self.norm_fnirs = nn.LayerNorm(c)
 
     def forward(self,eeg,fnirs):
 
         # eeg   (B,C,Te)
         # fnirs (B,C,Tf)
 
-        eeg = eeg.transpose(1,2)
-        fnirs = fnirs.transpose(1,2)
-
         eeg = self.norm_eeg(eeg)
         fnirs = self.norm_fnirs(fnirs)
-
-        eeg = eeg.transpose(1,2)
-        fnirs = fnirs.transpose(1,2)
 
         q = self.q(eeg)
         k = self.k(fnirs)
         v = self.v(fnirs)
 
-        q = q.transpose(1,2)   # (B,Te,C)
-        k = k.transpose(1,2)   # (B,Tf,C)
-        v = v.transpose(1,2)   # (B,Tf,C)
+        q = q.transpose(1,2)      # (B,Te,C)
+        k = k.transpose(1,2)      # (B,Tf,C)
+        v = v.transpose(1,2)      # (B,Tf,C)
 
         attn = torch.matmul(q,k.transpose(1,2)) * self.scale
         # (B,Te,Tf)
 
         attn = torch.softmax(attn,dim=-1)
 
-        attn = self.drop(attn)
-
         out = torch.matmul(attn,v)
         # (B,Te,C)
 
         out = out.transpose(1,2)
+        # (B,C,Te)
 
-        return out
-    
+        return out    
 
 
 
@@ -124,32 +138,44 @@ class EEGBranch(nn.Module):
 
         super().__init__()
 
-        self.stage1 = DSBlock(28,48,31,drop=0.1)
-        # (B,48,600)
+        self.stage1 = DSBlock(28,64,31)
+        # (B,64,600)
 
-        self.stage2 = DSBlock(48,96,31,stride=2,drop=0.15)
+        self.stage2 = DSBlock(64,96,31,stride=2)
         # (B,96,300)
 
-        self.stage3 = DSBlock(96,96,15,stride=2,drop=0.2)
+        self.stage3 = DSBlock(96,96,15,stride=2)
         # (B,96,150)
 
-        self.post = DSBlock(96,96,15,drop=0.2)
+        self.stage4 = DSBlock(96,96,15)
+        # (B,96,150)
 
         self.aspp = TemporalASPP(96,96)
+        # (B,96,150)
 
     def forward(self,x):
 
+        # x (B,28,600)
+
         x = self.stage1(x)
+        # (B,64,600)
+
         x = self.stage2(x)
+        # (B,96,300)
+
         x = self.stage3(x)
+        # (B,96,150)
 
-        feat = x              # (B,96,150)
+        feat = x
+        # (B,96,150)
 
-        x = self.post(x)
+        x = self.stage4(x)
+        # (B,96,150)
+
         x = self.aspp(x)
+        # (B,96,150)
 
-        return feat, x
-
+        return feat,x
 
 
 
@@ -161,25 +187,36 @@ class FNIRSBranch(nn.Module):
 
         super().__init__()
 
-        self.stage1 = DSBlock(72,64,15,drop=0.15)
+        self.stage1 = DSBlock(72,64,9)
         # (B,64,120)
 
-        self.stage2 = DSBlock(64,96,15,stride=2,drop=0.2)
+        self.stage2 = DSBlock(64,96,9,stride=2)
         # (B,96,60)
 
         self.align = EEGFNIRSAlign(96)
 
-        self.post1 = DSBlock(96,96,9,drop=0.2)
-        self.post2 = DSBlock(96,96,9,drop=0.2)
+        self.post1 = DSBlock(96,96,7)
+        # (B,96,60)
+
+        self.post2 = DSBlock(96,96,7)
+        # (B,96,60)
 
         self.aspp = TemporalASPP(96,96)
+        # (B,96,60)
 
     def forward(self,fnirs,eeg_feat):
 
+        # fnirs (B,72,120)
+        # eeg_feat (B,96,150)
+
         x = self.stage1(fnirs)
+        # (B,64,120)
+
         x = self.stage2(x)
+        # (B,96,60)
 
         align = self.align(eeg_feat,x)
+        # (B,96,150)
 
         align = F.interpolate(
             align,
@@ -187,16 +224,21 @@ class FNIRSBranch(nn.Module):
             mode="linear",
             align_corners=False
         )
+        # (B,96,60)
 
         x = x + align
+        # (B,96,60)
 
         x = self.post1(x)
+        # (B,96,60)
+
         x = self.post2(x)
+        # (B,96,60)
 
         x = self.aspp(x)
+        # (B,96,60)
 
         return x
-
 
 
 
