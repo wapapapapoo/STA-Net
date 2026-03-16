@@ -64,11 +64,11 @@ def train(model, train_loader, val_loader, args):
         val_loss = compute_loss(model, val_loader, criterion)
 
         print(
-            f"epoch: {epoch}, "
-            f"train_loss: {train_loss:.4f}, "
-            f"val_loss: {val_loss:.4f} , "
-            f"train_acc: {train_acc:.4f} , "
-            f"val_acc: {val_acc:.4f}"
+            f"epk: {epoch}, "
+            f"tl: {train_loss:.4f}, "
+            f"vl: {val_loss:.4f} , "
+            f"tacc: {train_acc:.4f} , "
+            f"vacc: {val_acc:.4f}"
         )
 
     return model
