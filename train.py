@@ -6,101 +6,71 @@ from eval import evaluate
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-# ======================================================
-# classification loss
-# ======================================================
+# =========================================================
+# LOSS
+# =========================================================
 
-def compute_cls_loss(output, label, criterion):
+class LossModule:
 
-    target = torch.argmax(label, dim=1)
+    def __init__(self, cls_weight=1.0, align_weight=0.05, trial_weight=0.05):
+        self.cls_weight = cls_weight
+        self.align_weight = align_weight
+        self.trial_weight = trial_weight
 
-    cls_loss = criterion(output, target)
+        self.ce = nn.CrossEntropyLoss()
 
-    return cls_loss
+    def classification(self, logits, label):
 
+        target = torch.argmax(label, dim=1)
 
-# ======================================================
-# trial consistency loss
-# ======================================================
+        return self.ce(logits, target)
 
-def compute_trial_consistency(feat, trial):
+    def alignment(self, eeg_feat, fnirs_feat):
 
-    trial_mean = {}
+        return ((eeg_feat - fnirs_feat) ** 2).mean()
 
-    for i in range(len(trial)):
-        t = trial[i].item()
+    def trial_consistency(self, feat, trial):
 
-        if t not in trial_mean:
-            trial_mean[t] = []
+        unique_trials = torch.unique(trial)
 
-        trial_mean[t].append(feat[i])
+        loss = 0
 
-    cons_loss = 0
+        for t in unique_trials:
 
-    for t in trial_mean:
+            idx = trial == t
+            f = feat[idx]
 
-        f = torch.stack(trial_mean[t])
+            if f.shape[0] < 2:
+                continue
 
-        m = f.mean(0)
+            m = f.mean(dim=0)
 
-        cons_loss += ((f - m) ** 2).mean()
+            loss += ((f - m) ** 2).mean()
 
-    cons_loss = cons_loss / len(trial_mean)
+        return loss / len(unique_trials)
 
-    return cons_loss
+    def total(self, logits, label, eeg_feat, fnirs_feat, trial):
 
+        cls_loss = self.classification(logits, label)
 
-# ======================================================
-# total loss
-# ======================================================
+        align_loss = self.alignment(eeg_feat, fnirs_feat)
 
-def compute_total_loss(output, label, trial, criterion, args):
+        trial_loss = self.trial_consistency(eeg_feat, trial)
 
-    cls_loss = compute_cls_loss(output, label, criterion)
+        loss = (
+            self.cls_weight * cls_loss
+            + self.align_weight * align_loss
+            + self.trial_weight * trial_loss
+        )
 
-    feat = output.detach()
+        return loss
+        
 
-    trial_loss = compute_trial_consistency(feat, trial)
+# =========================================================
+# TRAIN ONE EPOCH
+# =========================================================
 
-    total_loss = cls_loss + 0.1 * trial_loss
-
-    return total_loss
-
-
-# ======================================================
-# validation CE loss
-# ======================================================
-
-def compute_loss(model, loader, criterion):
-
-    model.eval()
-
-    total_loss = 0
-
-    with torch.no_grad():
-
-        for batch in loader:
-
-            eeg = batch["eeg_input"].to(DEVICE)
-            fnirs = batch["fnirs_input"].to(DEVICE)
-            label = batch["label"].to(DEVICE)
-
-            output = model(eeg, fnirs)
-
-            target = torch.argmax(label, dim=1)
-
-            loss = criterion(output, target)
-
-            total_loss += loss.item()
-
-    return total_loss / len(loader)
-
-
-# ======================================================
-# train one epoch
-# ======================================================
-
-def train_epoch(model, loader, optimizer, criterion, args):
+def train_epoch(model, loader, optimizer, loss_module):
 
     model.train()
 
@@ -115,14 +85,14 @@ def train_epoch(model, loader, optimizer, criterion, args):
 
         optimizer.zero_grad()
 
-        output = model(eeg, fnirs)
+        logits, eeg_feat, fnirs_feat = model(eeg, fnirs)
 
-        loss = compute_total_loss(
-            output,
+        loss = loss_module.total(
+            logits,
             label,
-            trial,
-            criterion,
-            args
+            eeg_feat,
+            fnirs_feat,
+            trial
         )
 
         loss.backward()
@@ -134,15 +104,48 @@ def train_epoch(model, loader, optimizer, criterion, args):
     return total_loss / len(loader)
 
 
-# ======================================================
-# train loop
-# ======================================================
+# =========================================================
+# VALIDATION LOSS
+# =========================================================
+
+def compute_val_loss(model, loader):
+
+    ce = nn.CrossEntropyLoss()
+
+    model.eval()
+
+    total_loss = 0
+
+    with torch.no_grad():
+
+        for batch in loader:
+
+            eeg = batch["eeg_input"].to(DEVICE)
+            fnirs = batch["fnirs_input"].to(DEVICE)
+            label = batch["label"].to(DEVICE)
+
+            logits, _, _ = model(eeg, fnirs)
+
+            target = torch.argmax(label, dim=1)
+
+            loss = ce(logits, target)
+
+            total_loss += loss.item()
+
+    return total_loss / len(loader)
+
+
+# =========================================================
+# TRAIN LOOP
+# =========================================================
 
 def train(model, train_loader, val_loader, args):
 
+    model = model.to(DEVICE)
+
     optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
 
-    criterion = nn.CrossEntropyLoss()
+    loss_module = LossModule()
 
     for epoch in range(20):
 
@@ -150,21 +153,20 @@ def train(model, train_loader, val_loader, args):
             model,
             train_loader,
             optimizer,
-            criterion,
-            args
+            loss_module
         )
 
         train_acc = evaluate(model, train_loader)
 
         val_acc = evaluate(model, val_loader)
 
-        val_loss = compute_loss(model, val_loader, criterion)
+        val_loss = compute_val_loss(model, val_loader)
 
         print(
-            f"ep:{epoch},"
-            f"tl:{train_loss:.4f},"
-            f"vl:{val_loss:.4f},"
-            f"tacc:{train_acc:.4f},"
+            f"ep:{epoch} | "
+            f"tl:{train_loss:.4f} | "
+            f"vl:{val_loss:.4f} | "
+            f"tacc:{train_acc:.4f} | "
             f"vacc:{val_acc:.4f}"
         )
 
