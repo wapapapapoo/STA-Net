@@ -230,9 +230,13 @@ class Model(nn.Module):
         # GRL (only fusion)
         # ----------------
 
-        rev = grad_reverse(fusion_embed)
+        rev_eeg = grad_reverse(eeg_embed)
+        rev_fnirs = grad_reverse(attn_fnirs)
+        rev_fusion = grad_reverse(fusion_embed)
 
-        session_logits = self.session_classifier(rev)
+        session_eeg = self.session_classifier(rev_eeg)
+        session_fnirs = self.session_classifier(rev_fnirs)
+        session_fusion = self.session_classifier(rev_fusion)
 
         return {
 
@@ -242,7 +246,9 @@ class Model(nn.Module):
             "fnirs_logits": fnirs_logits,
             "fusion_logits": fusion_logits,
 
-            "session_logits": session_logits,
+            "session_eeg": session_eeg,
+            "session_fnirs": session_fnirs,
+            "session_fusion": session_fusion,
 
             "eeg_embed": eeg_embed,
             "fnirs_embed": attn_fnirs,
