@@ -5,147 +5,88 @@ import random
 
 
 # -------------------------------------------------
-# Depthwise Separable Block (lighter)
+# Signal augmentation
 # -------------------------------------------------
 
-class DSBlock(nn.Module):
+def augment_signal(x):
 
-    def __init__(self, cin, cout, k, stride=1, drop=0.2):
+    if random.random() < 0.5:
+        x = x + torch.randn_like(x) * 0.05
+
+    if random.random() < 0.5:
+        shift = torch.randint(-15, 15, (1,)).item()
+        x = torch.roll(x, int(shift), dims=-1)
+
+    if random.random() < 0.3:
+        ch = torch.rand(x.shape[1], device=x.device) < 0.2
+        x[:, ch, :] = 0
+
+    return x
+
+
+# -------------------------------------------------
+# Very small temporal encoder
+# -------------------------------------------------
+
+class TinyEncoder(nn.Module):
+
+    def __init__(self, cin, hidden=32):
+
         super().__init__()
 
-        self.dw = nn.Conv1d(
-            cin, cin,
-            kernel_size=k,
-            stride=stride,
-            padding=k//2,
-            groups=cin
-        )
+        self.conv1 = nn.Conv1d(cin, hidden, 9, padding=4)
+        self.conv2 = nn.Conv1d(hidden, hidden, 9, padding=4)
 
-        self.pw = nn.Conv1d(cin, cout, 1)
+        self.norm = nn.GroupNorm(4, hidden)
 
-        self.norm = nn.GroupNorm(8, cout)
-        self.act = nn.GELU()
+    def forward(self, x):
 
-        self.drop = nn.Dropout(drop)
-
-    def forward(self,x):
-
-        x = self.dw(x)
-        x = self.pw(x)
+        x = F.gelu(self.conv1(x))
+        x = F.gelu(self.conv2(x))
 
         x = self.norm(x)
-        x = self.act(x)
 
-        return self.drop(x)
-
+        return x
 
 
 # -------------------------------------------------
-# EEG Encoder
+# Global temporal pooling
 # -------------------------------------------------
 
-class EEGEncoder(nn.Module):
+class GlobalPool(nn.Module):
 
-    def __init__(self,c=64):
+    def forward(self, x):
 
-        super().__init__()
+        # (B,C,T) → (B,C)
 
-        self.net = nn.Sequential(
+        mean = x.mean(-1)
+        std = x.std(-1)
 
-            DSBlock(28,c,31),         # (B,64,600)
-            DSBlock(c,c,31,stride=2), # (B,64,300)
-            DSBlock(c,c,15,stride=2), # (B,64,150)
-            DSBlock(c,c,15)           # (B,64,150)
-        )
-
-    def forward(self,x):
-
-        return self.net(x)
-
+        return torch.cat([mean, std], dim=1)
 
 
 # -------------------------------------------------
-# FNIRS Encoder
+# Fusion module
 # -------------------------------------------------
 
-class FNIRSEncoder(nn.Module):
+class Fusion(nn.Module):
 
-    def __init__(self,c=64):
-
-        super().__init__()
-
-        self.net = nn.Sequential(
-
-            DSBlock(72,c,9),          # (B,64,120)
-            DSBlock(c,c,9,stride=2),  # (B,64,60)
-            DSBlock(c,c,7),
-            DSBlock(c,c,7)
-        )
-
-    def forward(self,x):
-
-        return self.net(x)
-
-
-
-# -------------------------------------------------
-# Temporal Align
-# -------------------------------------------------
-
-class TemporalAlign(nn.Module):
-
-    def __init__(self,T=120):
-        super().__init__()
-        self.T = T
-
-    def forward(self,x):
-
-        return F.interpolate(
-            x,
-            size=self.T,
-            mode="linear",
-            align_corners=False
-        )
-
-
-
-# -------------------------------------------------
-# Gated Fusion (stable)
-# -------------------------------------------------
-
-class GatedFusion(nn.Module):
-
-    def __init__(self,c=64):
+    def __init__(self, dim):
 
         super().__init__()
 
         self.gate = nn.Sequential(
-            nn.Conv1d(c*2,c,1),
+            nn.Linear(dim * 2, dim),
             nn.Sigmoid()
         )
 
-        self.norm = nn.GroupNorm(8,c)
+    def forward(self, eeg, fnirs):
 
-    def forward(self,eeg,fnirs):
+        g = self.gate(torch.cat([eeg, fnirs], dim=1))
 
-        g = self.gate(torch.cat([eeg,fnirs],dim=1))
+        fused = g * eeg + (1 - g) * fnirs
 
-        x = g*eeg + (1-g)*fnirs
-
-        return self.norm(x)
-
-
-
-# -------------------------------------------------
-# Global Pool
-# -------------------------------------------------
-
-class TemporalPool(nn.Module):
-
-    def forward(self,x):
-
-        return x.mean(-1)
-
+        return fused
 
 
 # -------------------------------------------------
@@ -154,147 +95,69 @@ class TemporalPool(nn.Module):
 
 class Classifier(nn.Module):
 
-    def __init__(self,dim):
+    def __init__(self, dim):
 
         super().__init__()
 
-        self.net = nn.Sequential(
-            nn.Linear(dim, 2),
-        )
+        self.fc = nn.Linear(dim, 2)
 
-    def forward(self,x):
+    def forward(self, x):
 
-        return self.net(x)
-
+        return self.fc(x)
 
 
 # -------------------------------------------------
-# GRL
-# -------------------------------------------------
-
-class GradReverse(torch.autograd.Function):
-
-    @staticmethod
-    def forward(ctx,x,alpha):
-        ctx.alpha = alpha
-        return x.view_as(x)
-
-    @staticmethod
-    def backward(ctx,grad_output):
-        return -ctx.alpha * grad_output, None
-
-
-def grad_reverse(x,alpha=1):
-    return GradReverse.apply(x,alpha)
-
-
-
-# -------------------------------------------------
-# Model
+# Main model
 # -------------------------------------------------
 
 class Model(nn.Module):
 
-    def __init__(self,args):
+    def __init__(self, args):
 
         super().__init__()
 
-        c = 64
+        hidden = 32
 
-        self.eeg = EEGEncoder(c)
-        self.fnirs = FNIRSEncoder(c)
+        self.eeg_encoder = TinyEncoder(28, hidden)
+        self.fnirs_encoder = TinyEncoder(72, hidden)
 
-        self.align = TemporalAlign(120)
+        self.pool = GlobalPool()
 
-        self.fusion = GatedFusion(c)
+        emb_dim = hidden * 2
 
-        self.pool = TemporalPool()
+        self.fusion = Fusion(emb_dim)
 
-        self.classifier = Classifier(c)
-        self.classifier_eeg = Classifier(c)
-        self.classifier_fnirs = Classifier(c)
-
-        self.session_classifier = nn.Sequential(
-            nn.Linear(c,64),
-            nn.GELU(),
-            nn.Linear(64,args['TRAIL_GROUP_AMOUNT'])
-        )
-
-    def modality_dropout(self,eeg,fnirs):
-
-        if not self.training:
-            return eeg,fnirs
-
-        if random.random() < 0.3:
-            eeg = torch.zeros_like(eeg)
-
-        if random.random() < 0.3:
-            fnirs = torch.zeros_like(fnirs)
-
-        return eeg,fnirs
+        self.cls_eeg = Classifier(emb_dim)
+        self.cls_fnirs = Classifier(emb_dim)
+        self.cls_fusion = Classifier(emb_dim)
 
 
-    def forward(self,eeg,fnirs):
+    def forward(self, eeg, fnirs):
 
-        # -----------------------
-        # encode
-        # -----------------------
+        if self.training:
 
-        eeg = self.eeg(eeg)      # (B,64,150)
-        fnirs = self.fnirs(fnirs) # (B,64,60)
+            eeg = augment_signal(eeg)
+            fnirs = augment_signal(fnirs)
 
-        # -----------------------
-        # temporal align
-        # -----------------------
-
-        eeg = self.align(eeg)
-        fnirs = self.align(fnirs)
-
-        # -----------------------
-        # modality dropout
-        # -----------------------
-
-        eeg,fnirs = self.modality_dropout(eeg,fnirs)
-
-        # -----------------------
-        # fusion
-        # -----------------------
-
-        fusion = self.fusion(eeg,fnirs)
-
-        # -----------------------
-        # embedding
-        # -----------------------
+        eeg = self.eeg_encoder(eeg)
+        fnirs = self.fnirs_encoder(fnirs)
 
         eeg_emb = self.pool(eeg)
         fnirs_emb = self.pool(fnirs)
-        fusion_emb = self.pool(fusion)
 
-        # -----------------------
-        # classification
-        # -----------------------
+        fusion_emb = self.fusion(eeg_emb, fnirs_emb)
 
-        eeg_logits = self.classifier_eeg(eeg_emb)
-        fnirs_logits = self.classifier_fnirs(fnirs_emb)
-        fusion_logits = self.classifier(fusion_emb)
-
-        # -----------------------
-        # GRL
-        # -----------------------
-
-        rev = grad_reverse(fusion_emb)
-
-        session_logits = self.session_classifier(rev)
+        eeg_logits = self.cls_eeg(eeg_emb)
+        fnirs_logits = self.cls_fnirs(fnirs_emb)
+        fusion_logits = self.cls_fusion(fusion_emb)
 
         return {
 
             "logits": fusion_logits,
 
-            "fusion_logits": fusion_logits,
             "eeg_logits": eeg_logits,
             "fnirs_logits": fnirs_logits,
-
-            "session_logits": session_logits,
+            "fusion_logits": fusion_logits,
 
             "eeg_embed": eeg_emb,
             "fnirs_embed": fnirs_emb,

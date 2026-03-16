@@ -18,17 +18,11 @@ class LossModule(nn.Module):
 
         target = torch.argmax(label, dim=1)
 
-        loss_main = (
+        loss = (
             self.ce(output["eeg_logits"], target) +
             self.ce(output["fnirs_logits"], target) +
             self.ce(output["fusion_logits"], target)
         )
-
-        trial_group = output["trial_group"]
-
-        loss_session = self.ce(output["session_logits"], trial_group)
-
-        loss = loss_main #+ (epoch / 100) * loss_session
 
         return loss
 
