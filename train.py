@@ -144,10 +144,10 @@ def train(model, train_loader, val_loader, args):
 
     model = model.to(DEVICE)
 
-    optimizer = torch.optim.AdamW(
+    optimizer = torch.optim.SGD(
         model.parameters(),
-        lr=3e-4,
-        weight_decay=1e-4
+        lr=3e-2,
+        weight_decay=1e-3
     )
 
     loss_fn = LossModule()
