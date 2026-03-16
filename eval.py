@@ -107,7 +107,7 @@ class DummyModel(nn.Module):
         )
 
         self.fnirs_net = nn.Sequential(
-            nn.Conv1d(11 * 36 * 2, 64, 3, padding=1),
+            nn.Conv1d(72, 64, 3, padding=1),
             nn.ReLU(),
             nn.AdaptiveAvgPool1d(1)
         )
