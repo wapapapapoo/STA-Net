@@ -26,13 +26,9 @@ class LossModule(nn.Module):
 
         trial_group = output["trial_group"]
 
-        loss_session = (
-            self.ce(output["session_eeg"], trial_group) +
-            self.ce(output["session_fnirs"], trial_group) +
-            self.ce(output["session_fusion"], trial_group)
-        )
+        loss_session = self.ce(output["session_logits"], trial_group)
 
-        loss = loss_main + epoch / 100 * loss_session
+        loss = loss_main + (epoch / 100) * loss_session
 
         return loss
 
@@ -144,10 +140,10 @@ def train(model, train_loader, val_loader, args):
 
     model = model.to(DEVICE)
 
-    optimizer = torch.optim.SGD(
+    optimizer = torch.optim.AdamW(
         model.parameters(),
-        lr=3e-2,
-        weight_decay=1e-3
+        lr=3e-4,
+        weight_decay=1e-4
     )
 
     loss_fn = LossModule()
