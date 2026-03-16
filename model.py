@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 
 # =====================================================
-# EEG Encoder (EEGNet-style)
+# EEG Encoder (EEGNet style)
 # =====================================================
 
 class EEGEncoder(nn.Module):
@@ -14,7 +14,9 @@ class EEGEncoder(nn.Module):
         super().__init__()
 
         self.temporal = nn.Conv2d(
-            1, 16, (1,15),
+            1,
+            16,
+            (1,15),
             padding=(0,7),
             bias=False
         )
@@ -38,7 +40,8 @@ class EEGEncoder(nn.Module):
 
     def forward(self, x):
 
-        # (B,28,600)
+        # x: (B,28,600)
+
         x = x.unsqueeze(1)  # (B,1,28,600)
 
         x = self.temporal(x)
@@ -58,7 +61,7 @@ class EEGEncoder(nn.Module):
 
 
 # =====================================================
-# Channel Attention (for fNIRS)
+# Channel Attention
 # =====================================================
 
 class ChannelAttention(nn.Module):
@@ -67,20 +70,18 @@ class ChannelAttention(nn.Module):
 
         super().__init__()
 
-        self.net = nn.Sequential(
-
-            nn.Linear(channels, channels//4),
-            nn.ReLU(),
-
-            nn.Linear(channels//4, channels),
-            nn.Sigmoid()
-        )
+        self.fc1 = nn.Linear(channels, channels // 4)
+        self.fc2 = nn.Linear(channels // 4, channels)
 
     def forward(self, x):
 
+        # x: (B,C,T)
+
         w = x.mean(dim=2)
 
-        w = self.net(w)
+        w = F.relu(self.fc1(w))
+
+        w = torch.sigmoid(self.fc2(w))
 
         return x * w.unsqueeze(-1)
 
@@ -95,26 +96,39 @@ class FNIRSEncoder(nn.Module):
 
         super().__init__()
 
-        self.temporal = nn.Sequential(
-
-            nn.Conv1d(72, 32, 7, padding=3),
-            nn.BatchNorm1d(32),
-            nn.GELU(),
-
-            nn.Conv1d(32, 64, 5, padding=2),
-            nn.BatchNorm1d(64),
-            nn.GELU(),
+        self.conv1 = nn.Conv1d(
+            72,
+            32,
+            7,
+            padding=3
         )
 
-        self.channel_att = ChannelAttention(64)
+        self.bn1 = nn.BatchNorm1d(32)
+
+        self.conv2 = nn.Conv1d(
+            32,
+            64,
+            5,
+            padding=2
+        )
+
+        self.bn2 = nn.BatchNorm1d(64)
+
+        self.att = ChannelAttention(64)
 
         self.pool = nn.AdaptiveAvgPool1d(1)
 
     def forward(self, x):
 
-        x = self.temporal(x)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = F.gelu(x)
 
-        x = self.channel_att(x)
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = F.gelu(x)
+
+        x = self.att(x)
 
         x = self.pool(x)
 
@@ -122,30 +136,29 @@ class FNIRSEncoder(nn.Module):
 
 
 # =====================================================
-# Shared Representation Block
+# Shared Representation
 # =====================================================
 
-class SharedBlock(nn.Module):
+class SharedRepresentation(nn.Module):
 
     def __init__(self, dim=64):
 
         super().__init__()
 
-        self.net = nn.Sequential(
-
-            nn.Linear(dim, dim),
-            nn.GELU(),
-
-            nn.Linear(dim, dim)
-        )
+        self.fc1 = nn.Linear(dim, dim)
+        self.fc2 = nn.Linear(dim, dim)
 
     def forward(self, x):
 
-        return x + self.net(x)
+        h = F.gelu(self.fc1(x))
+
+        h = self.fc2(h)
+
+        return x + h
 
 
 # =====================================================
-# Projection Head (for contrastive)
+# Projection Head
 # =====================================================
 
 class ProjectionHead(nn.Module):
@@ -154,20 +167,19 @@ class ProjectionHead(nn.Module):
 
         super().__init__()
 
-        self.net = nn.Sequential(
+        self.bn = nn.BatchNorm1d(dim)
 
-            nn.BatchNorm1d(dim),
-
-            nn.Linear(
-                dim,
-                proj_dim,
-                bias=False
-            )
+        self.fc = nn.Linear(
+            dim,
+            proj_dim,
+            bias=False
         )
 
     def forward(self, x):
 
-        return self.net(x)
+        x = self.bn(x)
+
+        return self.fc(x)
 
 
 # =====================================================
@@ -180,17 +192,15 @@ class CrossModalPredictor(nn.Module):
 
         super().__init__()
 
-        self.net = nn.Sequential(
+        self.fc1 = nn.Linear(dim, dim)
 
-            nn.Linear(dim, dim),
-            nn.GELU(),
+        self.fc2 = nn.Linear(dim, dim)
 
-            nn.Linear(dim, dim)
-        )
+    def forward(self, x):
 
-    def forward(self, eeg_feat):
+        x = F.gelu(self.fc1(x))
 
-        return self.net(eeg_feat)
+        return self.fc2(x)
 
 
 # =====================================================
@@ -204,7 +214,9 @@ class CrossAttentionFusion(nn.Module):
         super().__init__()
 
         self.q = nn.Linear(dim, dim)
+
         self.k = nn.Linear(dim, dim)
+
         self.v = nn.Linear(dim, dim)
 
         self.scale = dim ** -0.5
@@ -212,11 +224,15 @@ class CrossAttentionFusion(nn.Module):
     def forward(self, eeg, fnirs):
 
         q = self.q(eeg)
+
         k = self.k(fnirs)
+
         v = self.v(fnirs)
 
+        score = (q * k).sum(-1, keepdim=True)
+
         attn = torch.softmax(
-            (q * k).sum(-1, keepdim=True) * self.scale,
+            score * self.scale,
             dim=0
         )
 
@@ -235,35 +251,37 @@ class Model(nn.Module):
 
         super().__init__()
 
-        # encoders
         self.eeg_encoder = EEGEncoder()
+
         self.fnirs_encoder = FNIRSEncoder()
 
-        # shared representation
-        self.shared = SharedBlock()
+        self.shared = SharedRepresentation()
 
-        # projection
         self.eeg_proj = ProjectionHead()
+
         self.fnirs_proj = ProjectionHead()
 
-        # cross modal prediction
         self.cross_predict = CrossModalPredictor()
 
-        # fusion
         self.fusion = CrossAttentionFusion()
 
-        # classifier
-        self.classifier = nn.Linear(64, 2)
+        self.classifier = nn.Linear(
+            64,
+            2
+        )
 
     def forward(self, eeg, fnirs):
 
         eeg_feat = self.eeg_encoder(eeg)
+
         fnirs_feat = self.fnirs_encoder(fnirs)
 
         eeg_feat = self.shared(eeg_feat)
+
         fnirs_feat = self.shared(fnirs_feat)
 
         eeg_proj = self.eeg_proj(eeg_feat)
+
         fnirs_proj = self.fnirs_proj(fnirs_feat)
 
         fnirs_pred = self.cross_predict(eeg_feat)
