@@ -237,7 +237,7 @@ class CrossModalFusion(nn.Module):
 
     def forward(self,eeg,fnirs):
         if self.training:
-            mask = torch.rand(eeg.shape[0],1,1,device=eeg.device)
+            mask = torch.rand_like(eeg[:,0:1,0:1])
 
             eeg = eeg * (mask > 0.2)
             fnirs = fnirs * (mask < 0.8)
@@ -282,23 +282,22 @@ class TemporalProjector(nn.Module):
 
 
 
-
 class Classifier(nn.Module):
 
-    def __init__(self,in_dim=48):
+    def __init__(self,in_dim):
 
         super().__init__()
 
         self.net = nn.Sequential(
 
-            nn.Linear(in_dim,48),
+            nn.Linear(in_dim,32),
             nn.GELU(),
             nn.Dropout(0.4),
 
-            nn.Linear(48,24),
+            nn.Linear(32,16),
             nn.GELU(),
 
-            nn.Linear(24,2)
+            nn.Linear(16,2)
         )
 
     def forward(self,x):
@@ -351,7 +350,7 @@ class Model(nn.Module):
         self.proj_fnirs = TemporalProjector(96)
         self.proj_fusion = TemporalProjector(96)
 
-        emb = 48
+        emb = 32
 
         self.classifier_eeg = Classifier(emb)
         self.classifier_fnirs = Classifier(emb)
