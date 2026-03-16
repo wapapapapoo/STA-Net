@@ -39,13 +39,9 @@ class LossModule(nn.Module):
 
 
 def train_epoch(model, loader, optimizer, loss_fn, args):
-
     model.train()
-
     total_loss = 0
-
     for batch in loader:
-
         eeg = batch["eeg_input"].to(DEVICE)
         fnirs = batch["fnirs_input"].to(DEVICE)
         label = batch["label"].to(DEVICE)
@@ -53,20 +49,40 @@ def train_epoch(model, loader, optimizer, loss_fn, args):
 
         optimizer.zero_grad()
 
-        # forward
-        output = model(eeg, fnirs)
-
-        # 计算 trial group
         trial_group = trial_label // args["TRAIL_GROUP"]
 
-        # 放进 output
-        output["trial_group"] = trial_group
+        # forward 1
+        output1 = model(eeg, fnirs)
+        output1["trial_group"] = trial_group
 
-        # loss
-        loss = loss_fn(
-            output,
-            label
-        )
+        # forward 2
+        output2 = model(eeg, fnirs)
+        output2["trial_group"] = trial_group
+
+        # CE loss
+        loss1 = loss_fn(output1, label)
+        loss2 = loss_fn(output2, label)
+
+        ce_loss = 0.5 * (loss1 + loss2)
+
+        # KL consistency
+        logits1 = output1["fusion_logits"]
+        logits2 = output2["fusion_logits"]
+
+        kl = (
+            F.kl_div(
+                F.log_softmax(logits1, dim=1),
+                F.softmax(logits2, dim=1),
+                reduction="batchmean"
+            ) +
+            F.kl_div(
+                F.log_softmax(logits2, dim=1),
+                F.softmax(logits1, dim=1),
+                reduction="batchmean"
+            )
+        ) / 2
+
+        loss = ce_loss + 0.5 * kl
 
         loss.backward()
 
@@ -76,11 +92,9 @@ def train_epoch(model, loader, optimizer, loss_fn, args):
         )
 
         optimizer.step()
-
         total_loss += loss.item()
 
     return total_loss / len(loader)
-
 
 
 
