@@ -13,7 +13,7 @@ def evaluate(model, loader):
             fnirs = batch["fnirs_input"].to(DEVICE)
             label = batch["label"].to(DEVICE)
 
-            output, _ = model(eeg, fnirs)
+            output, *_ = model(eeg, fnirs)
 
             pred = torch.argmax(output, dim=1)
             gt = torch.argmax(label, dim=1)
