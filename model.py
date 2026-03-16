@@ -161,6 +161,7 @@ class Model(nn.Module):
 
         self.eeg_encoder = EEGEncoder(embed_dim)
         self.fnirs_encoder = FNIRSEncoder(embed_dim)
+        self.embed_dropout = nn.Dropout(0.3)
 
         self.attention = EEGFNIRSAttention(embed_dim)
 
@@ -197,8 +198,10 @@ class Model(nn.Module):
         # ----------------
 
         eeg_embed = self.eeg_encoder(eeg)
+        eeg_embed = self.embed_dropout(eeg_embed)
 
         fnirs_feat, fnirs_embed = self.fnirs_encoder(fnirs)
+        fnirs_feat = self.embed_dropout(fnirs_feat)
 
         # ----------------
         # cross modal attention
