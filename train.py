@@ -1,74 +1,81 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from eval import evaluate
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-# ------------------------------------------------
-# trial contrastive
-# ------------------------------------------------
+# ======================================================
+# classification loss
+# ======================================================
 
-def trial_contrastive(feat, trial):
+def compute_cls_loss(output, label, criterion):
 
-    feat = F.normalize(feat, dim=1)
+    target = torch.argmax(label, dim=1)
 
-    sim = torch.matmul(feat, feat.T)
+    cls_loss = criterion(output, target)
 
-    mask = trial.unsqueeze(1) == trial.unsqueeze(0)
-
-    eye = torch.eye(len(trial), device=trial.device).bool()
-
-    pos_mask = mask & ~eye
-    neg_mask = ~mask
-
-    if pos_mask.sum() == 0 or neg_mask.sum() == 0:
-        return torch.tensor(0.0, device=feat.device)
-
-    pos = sim[pos_mask].mean()
-    neg = sim[neg_mask].mean()
-
-    return neg - pos
+    return cls_loss
 
 
-# ------------------------------------------------
-# trial consistency
-# ------------------------------------------------
+# ======================================================
+# trial consistency loss
+# ======================================================
 
-def trial_consistency(feat, trial):
+def compute_trial_consistency(feat, trial):
 
-    unique_trial, inverse = torch.unique(trial, return_inverse=True)
+    trial_mean = {}
 
-    trial_mean = torch.zeros(
-        len(unique_trial),
-        feat.shape[1],
-        device=feat.device
-    )
+    for i in range(len(trial)):
+        t = trial[i].item()
 
-    trial_mean.index_add_(0, inverse, feat)
+        if t not in trial_mean:
+            trial_mean[t] = []
 
-    counts = torch.bincount(inverse).float().unsqueeze(1)
+        trial_mean[t].append(feat[i])
 
-    trial_mean = trial_mean / counts
+    cons_loss = 0
 
-    mean_feat = trial_mean[inverse]
+    for t in trial_mean:
 
-    loss = ((feat - mean_feat) ** 2).mean()
+        f = torch.stack(trial_mean[t])
 
-    return loss
+        m = f.mean(0)
+
+        cons_loss += ((f - m) ** 2).mean()
+
+    cons_loss = cons_loss / len(trial_mean)
+
+    return cons_loss
 
 
-# ------------------------------------------------
-# compute val loss
-# ------------------------------------------------
+# ======================================================
+# total loss
+# ======================================================
+
+def compute_total_loss(output, label, trial, criterion, args):
+
+    cls_loss = compute_cls_loss(output, label, criterion)
+
+    feat = output.detach()
+
+    trial_loss = compute_trial_consistency(feat, trial)
+
+    total_loss = cls_loss + 0.1 * trial_loss
+
+    return total_loss
+
+
+# ======================================================
+# validation CE loss
+# ======================================================
 
 def compute_loss(model, loader, criterion):
 
     model.eval()
 
-    total = 0
+    total_loss = 0
 
     with torch.no_grad():
 
@@ -78,22 +85,22 @@ def compute_loss(model, loader, criterion):
             fnirs = batch["fnirs_input"].to(DEVICE)
             label = batch["label"].to(DEVICE)
 
-            logits, _ = model(eeg, fnirs)
+            output = model(eeg, fnirs)
 
             target = torch.argmax(label, dim=1)
 
-            loss = criterion(logits, target)
+            loss = criterion(output, target)
 
-            total += loss.item()
+            total_loss += loss.item()
 
-    return total / len(loader)
+    return total_loss / len(loader)
 
 
-# ------------------------------------------------
-# train epoch
-# ------------------------------------------------
+# ======================================================
+# train one epoch
+# ======================================================
 
-def train_epoch(model, loader, optimizer, criterion):
+def train_epoch(model, loader, optimizer, criterion, args):
 
     model.train()
 
@@ -108,17 +115,15 @@ def train_epoch(model, loader, optimizer, criterion):
 
         optimizer.zero_grad()
 
-        logits, feat = model(eeg, fnirs)
+        output = model(eeg, fnirs)
 
-        target = torch.argmax(label, dim=1)
-
-        cls_loss = criterion(logits, target)
-
-        cons_loss = trial_consistency(feat, trial)
-
-        ctr_loss = trial_contrastive(feat, trial)
-
-        loss = cls_loss + 0.1 * cons_loss + 0.05 * ctr_loss
+        loss = compute_total_loss(
+            output,
+            label,
+            trial,
+            criterion,
+            args
+        )
 
         loss.backward()
 
@@ -129,19 +134,15 @@ def train_epoch(model, loader, optimizer, criterion):
     return total_loss / len(loader)
 
 
-# ------------------------------------------------
-# train
-# ------------------------------------------------
+# ======================================================
+# train loop
+# ======================================================
 
 def train(model, train_loader, val_loader, args):
 
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=3e-4,
-        weight_decay=1e-3
-    )
+    optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
 
-    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+    criterion = nn.CrossEntropyLoss()
 
     for epoch in range(20):
 
@@ -149,7 +150,8 @@ def train(model, train_loader, val_loader, args):
             model,
             train_loader,
             optimizer,
-            criterion
+            criterion,
+            args
         )
 
         train_acc = evaluate(model, train_loader)
@@ -159,7 +161,7 @@ def train(model, train_loader, val_loader, args):
         val_loss = compute_loss(model, val_loader, criterion)
 
         print(
-            f"epk:{epoch},"
+            f"ep:{epoch},"
             f"tl:{train_loss:.4f},"
             f"vl:{val_loss:.4f},"
             f"tacc:{train_acc:.4f},"

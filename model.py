@@ -3,108 +3,104 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-# =========================================================
-# EEG ENCODER
-# =========================================================
+# ======================================================
+# Temporal Attention Pooling
+# ======================================================
+
+class TemporalAttention(nn.Module):
+
+    def __init__(self, channels):
+        super().__init__()
+
+        self.attn = nn.Sequential(
+            nn.Conv1d(channels, channels // 2, 1),
+            nn.Tanh(),
+            nn.Conv1d(channels // 2, 1, 1)
+        )
+
+    def forward(self, x):
+
+        score = self.attn(x)          # (B,1,T)
+        weight = torch.softmax(score, dim=2)
+
+        feat = (x * weight).sum(dim=2)
+
+        return feat
+
+
+# ======================================================
+# EEG Encoder
+# ======================================================
 
 class EEGEncoder(nn.Module):
 
     def __init__(self):
         super().__init__()
 
-        self.conv = nn.Sequential(
+        self.net = nn.Sequential(
 
-            nn.Conv1d(28, 16, 15, padding=7),
-            nn.BatchNorm1d(16),
-            nn.ReLU(),
-
-            nn.MaxPool1d(2),
-
-            nn.Conv1d(16, 32, 9, padding=4),
+            nn.Conv1d(28, 32, 25, padding=12),
             nn.BatchNorm1d(32),
             nn.ReLU(),
 
-            nn.MaxPool1d(2),
+            nn.MaxPool1d(2),  # 600 → 300
 
-            nn.Conv1d(32, 32, 5, padding=2),
-            nn.BatchNorm1d(32),
+            nn.Conv1d(32, 64, 15, padding=7),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+
+            nn.MaxPool1d(2),  # 300 → 150
+
+            nn.Conv1d(64, 64, 7, padding=3),
+            nn.BatchNorm1d(64),
             nn.ReLU()
         )
 
-        self.pool = nn.AdaptiveAvgPool1d(1)
+        self.pool = TemporalAttention(64)
 
     def forward(self, x):
 
-        x = self.conv(x)
+        x = self.net(x)
 
-        x = self.pool(x)
+        feat = self.pool(x)
 
-        return x.squeeze(-1)
+        return feat
 
 
-# =========================================================
-# FNIRS ENCODER
-# =========================================================
+# ======================================================
+# fNIRS Encoder
+# ======================================================
 
 class FNIRSEncoder(nn.Module):
 
     def __init__(self):
         super().__init__()
 
-        self.conv = nn.Sequential(
+        self.net = nn.Sequential(
 
-            nn.Conv1d(72, 16, 9, padding=4),
-            nn.BatchNorm1d(16),
+            nn.Conv1d(72, 32, 7, padding=3),
+            nn.BatchNorm1d(32),
             nn.ReLU(),
 
-            nn.Conv1d(16, 32, 7, padding=3),
-            nn.BatchNorm1d(32),
+            nn.Conv1d(32, 64, 5, padding=2),
+            nn.BatchNorm1d(64),
             nn.ReLU()
         )
 
-        self.pool = nn.AdaptiveAvgPool1d(1)
+        self.pool = TemporalAttention(64)
 
     def forward(self, x):
 
-        x = self.conv(x)
+        x = self.net(x)
 
-        x = self.pool(x)
+        feat = self.pool(x)
 
-        return x.squeeze(-1)
-
-
-# =========================================================
-# EEG → fNIRS INTERACTION
-# =========================================================
-
-class EEGGuidedFNIRS(nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-        self.proj = nn.Linear(32, 32)
-
-        self.gate = nn.Sequential(
-            nn.Linear(64, 16),
-            nn.ReLU(),
-            nn.Linear(16, 32),
-            nn.Sigmoid()
-        )
-
-    def forward(self, eeg, fnirs):
-
-        concat = torch.cat([eeg, fnirs], dim=1)
-
-        g = self.gate(concat)
-
-        fnirs = fnirs + g * self.proj(eeg)
-
-        return eeg, fnirs
+        return feat
 
 
-# =========================================================
-# MODEL
-# =========================================================
+# ======================================================
+# Model
+# ======================================================
 
 class Model(nn.Module):
 
@@ -112,30 +108,40 @@ class Model(nn.Module):
         super().__init__()
 
         self.eeg_encoder = EEGEncoder()
-
         self.fnirs_encoder = FNIRSEncoder()
 
-        self.interaction = EEGGuidedFNIRS()
+        # EEG -> fNIRS gating
+        self.cross_gate = nn.Sequential(
+            nn.Linear(64, 64),
+            nn.ReLU(),
+            nn.Linear(64, 64),
+            nn.Sigmoid()
+        )
+
+        self.fusion = nn.Sequential(
+            nn.Linear(128, 64),
+            nn.ReLU()
+        )
 
         self.classifier = nn.Sequential(
-
-            nn.Linear(64, 32),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-
-            nn.Linear(32, 2)
+            nn.Dropout(0.4),
+            nn.Linear(64, 2)
         )
 
     def forward(self, eeg, fnirs):
 
-        eeg_feat = self.eeg_encoder(eeg)      # (B,32)
+        eeg_feat = self.eeg_encoder(eeg)
+        fnirs_feat = self.fnirs_encoder(fnirs)
 
-        fnirs_feat = self.fnirs_encoder(fnirs) # (B,32)
+        # EEG guide fNIRS
+        gate = self.cross_gate(eeg_feat)
 
-        eeg_feat, fnirs_feat = self.interaction(eeg_feat, fnirs_feat)
+        fnirs_feat = fnirs_feat * gate
 
-        fused = torch.cat([eeg_feat, fnirs_feat], dim=1)   # (B,64)
+        fused = torch.cat([eeg_feat, fnirs_feat], dim=1)
+
+        fused = self.fusion(fused)
 
         out = self.classifier(fused)
 
-        return out, fused
+        return out, eeg_feat, fnirs_feat
