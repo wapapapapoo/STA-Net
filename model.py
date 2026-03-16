@@ -17,6 +17,7 @@ class DSBlock(nn.Module):
         self.bn = nn.GroupNorm(8, cout)
         self.act = nn.GELU()
         self.drop = nn.Dropout1d(drop)
+        self.drop_path = drop_path
 
     def forward(self,x):
         if self.training and torch.rand(1) < self.drop_path:
