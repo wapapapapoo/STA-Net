@@ -84,9 +84,8 @@ class FNIRSEncoder(nn.Module):
         return x.squeeze(-1)
 
 
-# =====================================================
-# MODEL
-# =====================================================
+
+
 
 class Model(nn.Module):
 
@@ -96,12 +95,15 @@ class Model(nn.Module):
         self.eeg_encoder = EEGEncoder()
         self.fnirs_encoder = FNIRSEncoder()
 
-        # modality gate
+        # EEG -> fNIRS spatial coupling
+        self.spatial_proj = nn.Linear(64, 64)
+
+        # modality reliability gate
         self.gate = nn.Sequential(
             nn.Linear(128, 32),
             nn.ReLU(),
             nn.Linear(32, 2),
-            nn.Softmax(dim=1)
+            nn.Sigmoid()
         )
 
         self.classifier = nn.Sequential(
@@ -115,6 +117,10 @@ class Model(nn.Module):
 
         eeg_feat = self.eeg_encoder(eeg)
         fnirs_feat = self.fnirs_encoder(fnirs)
+
+        # spatial coupling
+        eeg_to_fnirs = self.spatial_proj(eeg_feat)
+        fnirs_feat = fnirs_feat + eeg_to_fnirs
 
         feat = torch.cat([eeg_feat, fnirs_feat], dim=1)
 

@@ -33,17 +33,34 @@ def train_epoch(model, loader, optimizer, criterion, args):
         eeg = batch["eeg_input"].to(DEVICE)
         fnirs = batch["fnirs_input"].to(DEVICE)
         label = batch["label"].to(DEVICE)
+        trial = batch["trial_label"].to(DEVICE)
 
         optimizer.zero_grad()
-
         output = model(eeg, fnirs)
         target = torch.argmax(label, dim=1)
+        cls_loss = criterion(output, target)
 
-        loss = criterion(output, target)
+        # trial consistency
+        feat = output.detach()
+
+        trial_mean = {}
+        cons_loss = 0
+
+        for i in range(len(trial)):
+            t = trial[i].item()
+            if t not in trial_mean:
+                trial_mean[t] = []
+            trial_mean[t].append(feat[i])
+
+        for t in trial_mean:
+            f = torch.stack(trial_mean[t])
+            m = f.mean(0)
+            cons_loss += ((f - m)**2).mean()
+
+        cons_loss = cons_loss / len(trial_mean)
+        loss = cls_loss + 0.1 * cons_loss
         loss.backward()
-
         optimizer.step()
-
         total_loss += loss.item()
 
     return total_loss / len(loader)
@@ -64,11 +81,11 @@ def train(model, train_loader, val_loader, args):
         val_loss = compute_loss(model, val_loader, criterion)
 
         print(
-            f"epk: {epoch}, "
-            f"tl: {train_loss:.4f}, "
-            f"vl: {val_loss:.4f} , "
-            f"tacc: {train_acc:.4f} , "
-            f"vacc: {val_acc:.4f}"
+            f"epk:{epoch},"
+            f"tl:{train_loss:.4f},"
+            f"vl:{val_loss:.4f},"
+            f"tacc:{train_acc:.4f},"
+            f"vacc:{val_acc:.4f}"
         )
 
     return model
