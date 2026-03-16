@@ -275,3 +275,6 @@ def main():
         all_acc.extend(scores)
         print(f"{subject} mean_acc = {mean_acc:.4f} folds = {scores}")
     print("\nOverall mean accuracy:", np.mean(all_acc))
+
+if __name__ == "__main__":
+    main()
