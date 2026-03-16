@@ -129,23 +129,20 @@ class FNIRSEncoder(nn.Module):
 
 
 
-
 class CrossInteraction(nn.Module):
 
     def __init__(self):
         super().__init__()
 
-        self.proj = nn.Linear(64, 64)
+        self.eeg_from_fnirs = nn.Linear(64,64)
+        self.fnirs_from_eeg = nn.Linear(64,64)
 
     def forward(self, eeg, fnirs):
 
-        eeg_new = eeg + self.proj(fnirs)
-        fnirs_new = fnirs + self.proj(eeg)
+        eeg_new = eeg + self.eeg_from_fnirs(fnirs)
+        fnirs_new = fnirs + self.fnirs_from_eeg(eeg)
 
         return eeg_new, fnirs_new
-
-
-
 
 
 
@@ -163,16 +160,16 @@ class ReliabilityFusion(nn.Module):
         super().__init__()
 
         self.eeg_rel = nn.Sequential(
-            nn.Linear(64, 16),
+            nn.Linear(64,16),
             nn.ReLU(),
-            nn.Linear(16, 1),
+            nn.Linear(16,1),
             nn.Sigmoid()
         )
 
         self.fnirs_rel = nn.Sequential(
-            nn.Linear(64, 16),
+            nn.Linear(64,16),
             nn.ReLU(),
-            nn.Linear(16, 1),
+            nn.Linear(16,1),
             nn.Sigmoid()
         )
 
@@ -181,15 +178,12 @@ class ReliabilityFusion(nn.Module):
         r_eeg = self.eeg_rel(eeg)
         r_fnirs = self.fnirs_rel(fnirs)
 
-        norm = r_eeg + r_fnirs + 1e-6
+        eeg = eeg * r_eeg
+        fnirs = fnirs * r_fnirs
 
-        w1 = r_eeg / norm
-        w2 = r_fnirs / norm
-
-        fused = w1 * eeg + w2 * fnirs
+        fused = torch.cat([eeg, fnirs], dim=1)
 
         return fused
-
 
 
 
