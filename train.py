@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import copy
 
 from eval import evaluate
 
@@ -38,21 +37,11 @@ class LossModule(nn.Module):
         return loss
 
 
-def update_ema(model, ema_model, decay):
-    with torch.no_grad():
-        for ema_p, p in zip(ema_model.parameters(), model.parameters()):
-            ema_p.data.mul_(decay).add_(p.data, alpha=1 - decay)
 
-
-
-def train_epoch(model, ema_model, loader, optimizer, loss_fn, args, ema_decay=0.995):
-
+def train_epoch(model, loader, optimizer, loss_fn, args):
     model.train()
-
     total_loss = 0
-
     for batch in loader:
-
         eeg = batch["eeg_input"].to(DEVICE)
         fnirs = batch["fnirs_input"].to(DEVICE)
         label = batch["label"].to(DEVICE)
@@ -107,7 +96,6 @@ def train_epoch(model, ema_model, loader, optimizer, loss_fn, args, ema_decay=0.
                 p.grad += 0.001 * torch.randn_like(p.grad)
 
         optimizer.step()
-        update_ema(model, ema_model, ema_decay)
         total_loss += loss.item()
 
     return total_loss / len(loader)
@@ -156,12 +144,6 @@ def train(model, train_loader, val_loader, args):
 
     model = model.to(DEVICE)
 
-    ema_model = copy.deepcopy(model)
-    ema_model.eval()
-
-    for p in ema_model.parameters():
-        p.requires_grad_(False)
-
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=3e-4,
@@ -171,15 +153,13 @@ def train(model, train_loader, val_loader, args):
     loss_fn = LossModule()
 
     for epoch in range(50):
-        decay = 0.995 if epoch > 3 else 0
+
         train_loss = train_epoch(
             model,
-            ema_model,
             train_loader,
             optimizer,
             loss_fn,
-            args,
-            decay
+            args
         )
 
         train_acc = evaluate(model, train_loader)
