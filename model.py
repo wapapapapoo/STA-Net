@@ -4,10 +4,8 @@ import torch.nn.functional as F
 
 class DSBlock(nn.Module):
 
-    def __init__(self, cin, cout, k, stride=1, drop=0.2):
-
+    def __init__(self, cin, cout, k, stride=1, drop=0.15):
         super().__init__()
-
         self.depth = nn.Conv1d(
             cin, cin,
             kernel_size=k,
@@ -15,31 +13,21 @@ class DSBlock(nn.Module):
             stride=stride,
             groups=cin
         )
-
-        self.point = nn.Conv1d(
-            cin, cout,
-            kernel_size=1
-        )
-
+        self.point = nn.Conv1d(cin, cout, 1)
         self.bn = nn.GroupNorm(8, cout)
         self.act = nn.GELU()
-
         self.drop = nn.Dropout1d(drop)
 
     def forward(self,x):
-
         # x (B,C,T)
-
-        x = self.depth(x)      # (B,C,T)
-        x = self.point(x)      # (B,Cout,T)
+        x = self.depth(x)   # (B,C,T)
+        x = self.point(x)   # (B,Cout,T)
 
         x = self.bn(x)
         x = self.act(x)
 
-        x = self.drop(x)       # (B,Cout,T)
-
+        x = self.drop(x)
         return x
-
 
 
 
@@ -47,49 +35,24 @@ class DSBlock(nn.Module):
 
 class TemporalASPP(nn.Module):
 
-    def __init__(self, cin, cout, drop=0.3):
-
+    def __init__(self, cin, cout):
         super().__init__()
-
         self.b1 = nn.Conv1d(cin, cout, 1)
-
-        self.b2 = nn.Conv1d(
-            cin, cout, 3,
-            padding=3,
-            dilation=3
-        )
-
-        self.b3 = nn.Conv1d(
-            cin, cout, 3,
-            padding=6,
-            dilation=6
-        )
-
-        self.b4 = nn.Conv1d(
-            cin, cout, 3,
-            padding=12,
-            dilation=12
-        )
-
+        self.b2 = nn.Conv1d(cin, cout, 3, padding=2, dilation=2)
+        self.b3 = nn.Conv1d(cin, cout, 3, padding=4, dilation=4)
+        self.b4 = nn.Conv1d(cin, cout, 3, padding=8, dilation=8)
         self.proj = nn.Conv1d(cout*4, cout, 1)
-
-        self.drop = nn.Dropout1d(drop)
+        self.drop = nn.Dropout1d(0.2)
 
     def forward(self,x):
+        b1 = self.b1(x)
+        b2 = self.b2(x)
+        b3 = self.b3(x)
+        b4 = self.b4(x)
 
-        # x (B,C,T)
-
-        b1 = self.b1(x)  
-        b2 = self.b2(x)  
-        b3 = self.b3(x)  
-        b4 = self.b4(x)  
-
-        x = torch.cat([b1,b2,b3,b4],dim=1)  # (B,4C,T)
-
-        x = self.proj(x)  # (B,C,T)
-
+        x = torch.cat([b1,b2,b3,b4],dim=1)
+        x = self.proj(x)
         x = self.drop(x)
-
         return x
 
 
@@ -160,18 +123,18 @@ class EEGBranch(nn.Module):
 
         super().__init__()
 
-        self.stage1 = DSBlock(28,64,31,drop=0.15)
-        # (B,64,600)
+        self.stage1 = DSBlock(28,48,31,drop=0.1)
+        # (B,48,600)
 
-        self.stage2 = DSBlock(64,128,31,stride=2,drop=0.2)
-        # (B,128,300)
+        self.stage2 = DSBlock(48,96,31,stride=2,drop=0.15)
+        # (B,96,300)
 
-        self.stage3 = DSBlock(128,192,15,stride=2,drop=0.25)
-        # (B,192,150)
+        self.stage3 = DSBlock(96,96,15,stride=2,drop=0.2)
+        # (B,96,150)
 
-        self.post = DSBlock(192,192,15,drop=0.3)
+        self.post = DSBlock(96,96,15,drop=0.2)
 
-        self.aspp = TemporalASPP(192,192,drop=0.35)
+        self.aspp = TemporalASPP(96,96)
 
     def forward(self,x):
 
@@ -179,13 +142,12 @@ class EEGBranch(nn.Module):
         x = self.stage2(x)
         x = self.stage3(x)
 
-        feat = x
+        feat = x              # (B,96,150)
 
         x = self.post(x)
         x = self.aspp(x)
 
         return feat, x
-
 
 
 
@@ -198,18 +160,18 @@ class FNIRSBranch(nn.Module):
 
         super().__init__()
 
-        self.stage1 = DSBlock(72,128,15,drop=0.2)
-        # (B,128,120)
+        self.stage1 = DSBlock(72,64,15,drop=0.15)
+        # (B,64,120)
 
-        self.stage2 = DSBlock(128,192,15,stride=2,drop=0.25)
-        # (B,192,60)
+        self.stage2 = DSBlock(64,96,15,stride=2,drop=0.2)
+        # (B,96,60)
 
-        self.align = EEGFNIRSAlign(192,drop=0.2)
+        self.align = EEGFNIRSAlign(96)
 
-        self.post1 = DSBlock(192,192,9,drop=0.3)
-        self.post2 = DSBlock(192,192,9,drop=0.3)
+        self.post1 = DSBlock(96,96,9,drop=0.2)
+        self.post2 = DSBlock(96,96,9,drop=0.2)
 
-        self.aspp = TemporalASPP(192,192,drop=0.35)
+        self.aspp = TemporalASPP(96,96)
 
     def forward(self,fnirs,eeg_feat):
 
@@ -233,7 +195,6 @@ class FNIRSBranch(nn.Module):
         x = self.aspp(x)
 
         return x
-
 
 
 
@@ -265,7 +226,7 @@ class TemporalAlign(nn.Module):
 
 class CrossModalFusion(nn.Module):
 
-    def __init__(self, c=192):
+    def __init__(self, c=96):
 
         super().__init__()
 
@@ -274,7 +235,7 @@ class CrossModalFusion(nn.Module):
 
         self.mix = nn.Conv1d(c*2,c,1)
 
-        self.drop = nn.Dropout1d(0.35)
+        self.drop = nn.Dropout1d(0.25)
 
     def forward(self,eeg,fnirs):
 
@@ -295,28 +256,38 @@ class CrossModalFusion(nn.Module):
 
 
 
+
+
+
 class TemporalProjector(nn.Module):
-    def __init__(self,c=192):
+
+    def __init__(self,c=96):
+
         super().__init__()
+
         self.net = nn.Sequential(
 
-            nn.Conv1d(c,128,3,padding=1),
+            nn.Conv1d(c,48,3,padding=1),
             nn.GELU(),
-            nn.Dropout1d(0.25),
+            nn.Dropout1d(0.2),
 
-            nn.Conv1d(128,128,3,padding=1),
+            nn.Conv1d(48,48,3,padding=1),
             nn.GELU(),
 
             nn.AdaptiveAvgPool1d(1)
         )
 
     def forward(self,x):
-        # x (B,192,120)
+
         x = self.net(x)
-        # (B,128,1)
+
         x = x.squeeze(-1)
-        # (B,128)
+
         return x
+
+
+
+
 
 
 
@@ -324,24 +295,22 @@ class TemporalProjector(nn.Module):
 
 class Classifier(nn.Module):
 
-    def __init__(self,in_dim=128):
+    def __init__(self,in_dim=48):
 
         super().__init__()
 
         self.net = nn.Sequential(
 
-            nn.Linear(in_dim,64),
+            nn.Linear(in_dim,24),
             nn.GELU(),
-            nn.Dropout(0.4),
+            nn.Dropout(0.3),
 
-            nn.Linear(64,2)
+            nn.Linear(24,2)
         )
 
     def forward(self,x):
 
-        return self.net(x)    
-
-
+        return self.net(x)
 
 
 
