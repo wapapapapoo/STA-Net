@@ -103,12 +103,14 @@ class FNIRSEncoder(nn.Module):
 
 class EEGFNIRSAttention(nn.Module):
 
-    def __init__(self, embed_dim=128, fnirs_time=120):
+    def __init__(self, embed_dim=128):
 
         super().__init__()
 
         self.query = nn.Linear(embed_dim, embed_dim)
         self.key = nn.Conv1d(72, embed_dim, 1)
+
+        self.value = nn.Conv1d(72, embed_dim, 1)
 
         self.scale = embed_dim ** -0.5
 
@@ -117,18 +119,14 @@ class EEGFNIRSAttention(nn.Module):
         q = self.query(eeg_embed).unsqueeze(1)
 
         k = self.key(fnirs_raw).transpose(1,2)
+        v = self.value(fnirs_raw).transpose(1,2)
 
         attn = torch.matmul(q, k.transpose(1,2)) * self.scale
-
         attn = torch.softmax(attn, dim=-1)
-
-        v = fnirs_raw.transpose(1,2)
 
         out = torch.matmul(attn, v)
 
-        out = out.squeeze(1)
-
-        return out
+        return out.squeeze(1)
 
 
 # ------------------------------------------------
