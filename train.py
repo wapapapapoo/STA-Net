@@ -146,13 +146,13 @@ def train(model, train_loader, val_loader, args):
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
-        lr=3e-4,
+        lr=1e-4,
         weight_decay=1e-4
     )
 
     loss_fn = LossModule()
 
-    for epoch in range(50):
+    for epoch in range(100):
 
         train_loss = train_epoch(
             epoch,
