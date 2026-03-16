@@ -79,10 +79,18 @@ def build_split(eeg, fnirs, label, session, n_trials=60, windows_per_trial=10):
     test_trials = trial_ids[test_start:test_end]
     train_trials = np.setdiff1d(trial_ids, test_trials)
 
-    # validation：从 train trials 随机选
-    val_trials = np.random.choice(train_trials, size=5, replace=False)
+    # -------- validation 固定抽取策略 --------
+    n = len(train_trials)
+
+    front = train_trials[:3]
+    middle_start = n // 2 - 2
+    middle = train_trials[middle_start:middle_start + 4]
+    back = train_trials[-3:]
+
+    val_trials = np.concatenate([front, middle, back])
 
     train_trials = np.setdiff1d(train_trials, val_trials)
+    # ---------------------------------------
 
     # trial → window index
     def trials_to_indices(trials):
@@ -114,7 +122,6 @@ def build_split(eeg, fnirs, label, session, n_trials=60, windows_per_trial=10):
         eeg_val, fnirs_val, label_val,
         eeg_test, fnirs_test, label_test
     )
-
 
 
 # =========================================================
@@ -173,6 +180,9 @@ def main():
             train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
             val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE)
             test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE)
+            nargs = {
+                **args, 'test_loader': test_loader
+            }
 
             model = Model(args).to(DEVICE)
 

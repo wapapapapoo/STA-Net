@@ -154,11 +154,12 @@ def train(model, train_loader, val_loader, args):
         )
 
         print(
-            f"ep:{epoch:02d} | "
-            f"tl:{train_loss:.4f} | "
-            f"vl:{val_loss:.4f} | "
-            f"tacc:{train_acc:.4f} | "
-            f"vacc:{val_acc:.4f}", flush=True
+            f"ep {epoch:02d} "
+            f"tl {train_loss:.4f} "
+            f"vl {val_loss:.4f} "
+            f"tacc {train_acc:.4f} "
+            f"vacc {val_acc:.4f} "
+            f"tacc {evaluate(model, args['test_loader'])} ", flush=True
         )
 
     return model
