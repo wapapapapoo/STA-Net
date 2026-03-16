@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 class DSBlock(nn.Module):
 
-    def __init__(self, cin, cout, k, stride=1, drop=0.15):
+    def __init__(self, cin, cout, k, stride=1, drop=0.25):
         super().__init__()
 
         self.dw = nn.Conv1d(
@@ -19,17 +19,15 @@ class DSBlock(nn.Module):
 
         self.norm = nn.GroupNorm(8, cout)
         self.act = nn.GELU()
+
         self.drop = nn.Dropout1d(drop)
 
     def forward(self,x):
 
         # x (B,C,T)
 
-        x = self.dw(x)
-        # (B,C,T)
-
-        x = self.pw(x)
-        # (B,Cout,T)
+        x = self.dw(x)      # (B,C,T)
+        x = self.pw(x)      # (B,Cout,T)
 
         x = self.norm(x)
         x = self.act(x)
@@ -40,30 +38,17 @@ class DSBlock(nn.Module):
 
 
 
+class TemporalPyramid(nn.Module):
 
-class TemporalASPP(nn.Module):
-
-    def __init__(self, cin, cout):
+    def __init__(self,c):
 
         super().__init__()
 
-        self.b1 = nn.Conv1d(cin, cout, 1)
+        self.b1 = nn.Conv1d(c,c,3,padding=1)
+        self.b2 = nn.Conv1d(c,c,5,padding=2)
+        self.b3 = nn.Conv1d(c,c,7,padding=3)
 
-        self.b2 = nn.Conv1d(
-            cin, cout,
-            3,
-            padding=2,
-            dilation=2
-        )
-
-        self.b3 = nn.Conv1d(
-            cin, cout,
-            3,
-            padding=6,
-            dilation=6
-        )
-
-        self.project = nn.Conv1d(cout*3, cout, 1)
+        self.mix = nn.Conv1d(c*3,c,1)
 
     def forward(self,x):
 
@@ -76,12 +61,10 @@ class TemporalASPP(nn.Module):
         x = torch.cat([b1,b2,b3],dim=1)
         # (B,3C,T)
 
-        x = self.project(x)
+        x = self.mix(x)
         # (B,C,T)
 
         return x
-
-
 
 
 class EEGFNIRSAlign(nn.Module):
@@ -101,34 +84,28 @@ class EEGFNIRSAlign(nn.Module):
 
     def forward(self,eeg,fnirs):
 
-        # eeg   (B,C,Te)
-        # fnirs (B,C,Tf)
+        # eeg   (B,96,150)
+        # fnirs (B,96,60)
 
         eeg = self.norm_eeg(eeg)
         fnirs = self.norm_fnirs(fnirs)
 
-        q = self.q(eeg)
-        k = self.k(fnirs)
-        v = self.v(fnirs)
-
-        q = q.transpose(1,2)      # (B,Te,C)
-        k = k.transpose(1,2)      # (B,Tf,C)
-        v = v.transpose(1,2)      # (B,Tf,C)
+        q = self.q(eeg).transpose(1,2)      # (B,150,96)
+        k = self.k(fnirs).transpose(1,2)    # (B,60,96)
+        v = self.v(fnirs).transpose(1,2)    # (B,60,96)
 
         attn = torch.matmul(q,k.transpose(1,2)) * self.scale
-        # (B,Te,Tf)
+        # (B,150,60)
 
         attn = torch.softmax(attn,dim=-1)
 
         out = torch.matmul(attn,v)
-        # (B,Te,C)
+        # (B,150,96)
 
         out = out.transpose(1,2)
-        # (B,C,Te)
+        # (B,96,150)
 
-        return out    
-
-
+        return out
 
 
 
@@ -150,34 +127,24 @@ class EEGBranch(nn.Module):
         self.stage4 = DSBlock(96,96,15)
         # (B,96,150)
 
-        self.aspp = TemporalASPP(96,96)
+        self.pyramid = TemporalPyramid(96)
         # (B,96,150)
 
     def forward(self,x):
 
         # x (B,28,600)
 
-        x = self.stage1(x)
-        # (B,64,600)
+        x = self.stage1(x)   # (B,64,600)
+        x = self.stage2(x)   # (B,96,300)
+        x = self.stage3(x)   # (B,96,150)
 
-        x = self.stage2(x)
-        # (B,96,300)
+        feat = x             # (B,96,150)
 
-        x = self.stage3(x)
-        # (B,96,150)
+        x = self.stage4(x)   # (B,96,150)
 
-        feat = x
-        # (B,96,150)
-
-        x = self.stage4(x)
-        # (B,96,150)
-
-        x = self.aspp(x)
-        # (B,96,150)
+        x = self.pyramid(x)  # (B,96,150)
 
         return feat,x
-
-
 
 
 
@@ -196,24 +163,16 @@ class FNIRSBranch(nn.Module):
         self.align = EEGFNIRSAlign(96)
 
         self.post1 = DSBlock(96,96,7)
-        # (B,96,60)
-
         self.post2 = DSBlock(96,96,7)
-        # (B,96,60)
 
-        self.aspp = TemporalASPP(96,96)
-        # (B,96,60)
+        self.pyramid = TemporalPyramid(96)
 
     def forward(self,fnirs,eeg_feat):
 
         # fnirs (B,72,120)
-        # eeg_feat (B,96,150)
 
-        x = self.stage1(fnirs)
-        # (B,64,120)
-
-        x = self.stage2(x)
-        # (B,96,60)
+        x = self.stage1(fnirs)   # (B,64,120)
+        x = self.stage2(x)       # (B,96,60)
 
         align = self.align(eeg_feat,x)
         # (B,96,150)
@@ -230,12 +189,9 @@ class FNIRSBranch(nn.Module):
         # (B,96,60)
 
         x = self.post1(x)
-        # (B,96,60)
-
         x = self.post2(x)
-        # (B,96,60)
 
-        x = self.aspp(x)
+        x = self.pyramid(x)
         # (B,96,60)
 
         return x
@@ -266,22 +222,30 @@ class TemporalAlign(nn.Module):
 
 
 
-
 class CrossModalFusion(nn.Module):
+
     def __init__(self,c=96):
+
         super().__init__()
-        self.mix = nn.Conv1d(c*2,c,1)
+
+        self.gate = nn.Sequential(
+            nn.Conv1d(c*2,c,1),
+            nn.Sigmoid()
+        )
+
         self.norm = nn.GroupNorm(8,c)
-        self.drop = nn.Dropout1d(0.3)
 
     def forward(self,eeg,fnirs):
-        x = torch.cat([eeg,fnirs],dim=1)
-        x = self.mix(x)
+
+        g = self.gate(torch.cat([eeg,fnirs],dim=1))
+        # (B,96,T)
+
+        x = g*eeg + (1-g)*fnirs
+        # (B,96,T)
+
         x = self.norm(x)
-        x = self.drop(x)
+
         return x
-
-
 
 
 
@@ -293,26 +257,24 @@ class TemporalProjector(nn.Module):
 
         super().__init__()
 
-        self.net = nn.Sequential(
+        self.conv = nn.Conv1d(c,48,3,padding=1)
 
-            nn.Conv1d(c,48,3,padding=1),
-            nn.GELU(),
-            nn.Dropout1d(0.2),
-
-            nn.Conv1d(48,48,3,padding=1),
-            nn.GELU(),
-
-            nn.AdaptiveAvgPool1d(1)
-        )
+        self.attn = nn.Conv1d(48,1,1)
 
     def forward(self,x):
 
-        x = self.net(x)
+        # x (B,96,T)
 
-        x = x.squeeze(-1)
+        x = self.conv(x)
+        # (B,48,T)
+
+        w = torch.softmax(self.attn(x),dim=-1)
+        # (B,1,T)
+
+        x = (x*w).sum(-1)
+        # (B,48)
 
         return x
-
 
 
 
