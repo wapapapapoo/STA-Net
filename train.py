@@ -32,7 +32,7 @@ class LossModule(nn.Module):
             self.ce(output["session_fusion"], trial_group)
         )
 
-        loss = loss_main #+ loss_session
+        loss = loss_main + loss_session
 
         return loss
 
