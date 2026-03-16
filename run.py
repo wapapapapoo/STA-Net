@@ -15,27 +15,29 @@ FOLD = 3
 DATA_PATH = "data/model_input_2d"
 RESULT_FILE = "results.txt"
 
-
 # =========================================================
 # Dataset
 # =========================================================
+
 class EEGFNIRSDataset(Dataset):
-    def __init__(self, eeg, fnirs, label):
-        # EEG
+    def __init__(self, eeg, fnirs, label, windows_per_trial=10):
+
         eeg = np.squeeze(eeg, axis=-1)     # (N,28,600)
 
-        # fNIRS
         N = fnirs.shape[0]
 
-        # (N,11,36,30,2) → (N,11,72,30)
+        # fNIRS reshape
         fnirs = fnirs.reshape(N, 11, 36 * 2, 30)
-
-        # (N,11,72,30) → (N,72,330)
         fnirs = fnirs.transpose(0,2,1,3).reshape(N, 72, 11 * 30)
+
+        # trial id
+        trial_id = np.arange(N) // windows_per_trial
 
         self.eeg = torch.tensor(eeg, dtype=torch.float32)
         self.fnirs = torch.tensor(fnirs, dtype=torch.float32)
         self.label = torch.tensor(label, dtype=torch.float32)
+
+        self.trial_label = torch.tensor(trial_id, dtype=torch.long)
 
     def __len__(self):
         return self.eeg.shape[0]
@@ -44,49 +46,55 @@ class EEGFNIRSDataset(Dataset):
         return {
             "eeg_input": self.eeg[idx],
             "fnirs_input": self.fnirs[idx],
-            "label": self.label[idx]
+            "label": self.label[idx],
+            "trial_label": self.trial_label[idx]
         }
-
 
 # =========================================================
 # Split
 # =========================================================
 
-def build_split(eeg, fnirs, label, session):
+def build_split(eeg, fnirs, label, session, n_trials=60, windows_per_trial=10):
 
-    fold_size = 600 // FOLD
+    trials_per_fold = n_trials // FOLD
 
-    test_start = session * fold_size
-    test_end = (session + 1) * fold_size
+    test_start = session * trials_per_fold
+    test_end = (session + 1) * trials_per_fold
 
-    eeg_test = eeg[test_start:test_end]
-    fnirs_test = fnirs[test_start:test_end]
-    label_test = label[test_start:test_end]
+    trial_ids = np.arange(n_trials)
 
-    all_eeg = np.delete(eeg, slice(test_start, test_end), axis=0)
-    all_fnirs = np.delete(fnirs, slice(test_start, test_end), axis=0)
-    all_label = np.delete(label, slice(test_start, test_end), axis=0)
+    test_trials = trial_ids[test_start:test_end]
+    train_trials = np.setdiff1d(trial_ids, test_trials)
 
-    if session == 0:
-        indices = np.arange(0, 100)
+    # validation：从 train trials 随机选
+    val_trials = np.random.choice(train_trials, size=5, replace=False)
 
-    elif session == FOLD - 1:
-        indices = np.arange(300, 400)
+    train_trials = np.setdiff1d(train_trials, val_trials)
 
-    else:
-        boundary = test_start
-        indices = np.concatenate([
-            np.arange(boundary - 50, boundary),
-            np.arange(boundary, boundary + 50)
-        ])
+    # trial → window index
+    def trials_to_indices(trials):
+        idx = []
+        for t in trials:
+            start = t * windows_per_trial
+            end = (t + 1) * windows_per_trial
+            idx.extend(range(start, end))
+        return np.array(idx)
 
-    eeg_val = all_eeg[indices]
-    fnirs_val = all_fnirs[indices]
-    label_val = all_label[indices]
+    train_idx = trials_to_indices(train_trials)
+    val_idx = trials_to_indices(val_trials)
+    test_idx = trials_to_indices(test_trials)
 
-    eeg_train = np.delete(all_eeg, indices, axis=0)
-    fnirs_train = np.delete(all_fnirs, indices, axis=0)
-    label_train = np.delete(all_label, indices, axis=0)
+    eeg_train = eeg[train_idx]
+    fnirs_train = fnirs[train_idx]
+    label_train = label[train_idx]
+
+    eeg_val = eeg[val_idx]
+    fnirs_val = fnirs[val_idx]
+    label_val = label[val_idx]
+
+    eeg_test = eeg[test_idx]
+    fnirs_test = fnirs[test_idx]
+    label_test = label[test_idx]
 
     return (
         eeg_train, fnirs_train, label_train,
@@ -94,17 +102,36 @@ def build_split(eeg, fnirs, label, session):
         eeg_test, fnirs_test, label_test
     )
 
+
+
 # =========================================================
 # main
 # =========================================================
 
 def main():
+    args = {
+    }
+    print("; model sparams")
+    for key, value in args:
+        print(f"; {key}: {value}")
+
+    model_example = Model(args).to(DEVICE)
+    total_params = 0
+    trainable_params = 0
+    print("; model size summary")
+    for name, param in model_example.named_parameters():
+        num = param.numel()
+        total_params += num
+        if param.requires_grad:
+            trainable_params += num
+        print(f"; {name:40s} {num:10d}")
+    print(f"; total: {total_params}, trainable: {trainable_params}")
+    del model_example
+
     subject_list = sorted(os.listdir(DATA_PATH))
     all_results = []
 
     for subject in subject_list:
-
-        print("Subject:", subject)
 
         data = np.load(os.path.join(DATA_PATH, subject))
 
@@ -116,7 +143,7 @@ def main():
 
         for session in range(FOLD):
 
-            print("Fold:", session)
+            print(f"# subject: {subject}, session: {session}, train")
 
             (
                 eeg_train, fnirs_train, label_train,
@@ -132,12 +159,12 @@ def main():
             val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE)
             test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE)
 
-            model = Model().to(DEVICE)
+            model = Model(args).to(DEVICE)
 
-            train(model, train_loader, val_loader)
+            train(model, train_loader, val_loader, args)
 
             test_acc = evaluate(model, test_loader)
-            print("Test:", test_acc)
+            print(f"# subject: {subject}, session: {session}, test: {test_acc}")
 
             all_results.append((subject, session, test_acc))
             with open(RESULT_FILE, "a") as f:
