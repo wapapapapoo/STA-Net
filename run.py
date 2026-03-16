@@ -186,7 +186,7 @@ def main():
 
             model = Model(args).to(DEVICE)
 
-            train(model, train_loader, val_loader, args)
+            train(model, train_loader, val_loader, nargs)
 
             test_acc = evaluate(model, test_loader)
             print(f"# subject: {subject}, session: {session}, test: {test_acc}")
