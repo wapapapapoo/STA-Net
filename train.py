@@ -32,7 +32,7 @@ class LossModule(nn.Module):
             self.ce(output["session_fusion"], trial_group)
         )
 
-        loss = loss_main + 0.3 * loss_session
+        loss = loss_main + 0.5 * loss_session
 
         return loss
 
@@ -72,7 +72,7 @@ def train_epoch(model, loader, optimizer, loss_fn, args):
 
         torch.nn.utils.clip_grad_norm_(
             model.parameters(),
-            5
+            1.
         )
 
         optimizer.step()

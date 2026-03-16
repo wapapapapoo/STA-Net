@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 
 # ------------------------------------------------
-# Gradient Reversal
+# Gradient Reversal Layer
 # ------------------------------------------------
 
 class GradReverse(torch.autograd.Function):
@@ -38,24 +38,26 @@ class EEGEncoder(nn.Module):
             nn.Conv1d(28, 64, 7, padding=3),
             nn.BatchNorm1d(64),
             nn.GELU(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.25),
 
             nn.Conv1d(64, 128, 5, padding=2),
             nn.BatchNorm1d(128),
             nn.GELU(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.25),
 
             nn.AdaptiveAvgPool1d(1)
         )
 
-        self.fc = nn.Linear(128, embed_dim)
+        self.fc = nn.Sequential(
+            nn.Linear(128, embed_dim),
+            nn.Dropout(0.3)
+        )
 
     def forward(self, x):
 
         x = self.net(x).squeeze(-1)
-        x = self.fc(x)
 
-        return x
+        return self.fc(x)
 
 
 # ------------------------------------------------
@@ -68,27 +70,31 @@ class FNIRSEncoder(nn.Module):
     def __init__(self, embed_dim=128):
         super().__init__()
 
-        self.conv = nn.Sequential(
+        self.net = nn.Sequential(
 
             nn.Conv1d(72, 128, 5, padding=2),
             nn.BatchNorm1d(128),
             nn.GELU(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.25),
 
-            nn.Conv1d(128, embed_dim, 5, padding=2),
-            nn.BatchNorm1d(embed_dim),
+            nn.Conv1d(128, 128, 5, padding=2),
+            nn.BatchNorm1d(128),
             nn.GELU(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.25),
+
+            nn.AdaptiveAvgPool1d(1)
         )
 
-        self.pool = nn.AdaptiveAvgPool1d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(128, embed_dim),
+            nn.Dropout(0.3)
+        )
 
     def forward(self, x):
 
-        feat = self.conv(x)           # (B,embed,T)
-        embed = self.pool(feat).squeeze(-1)
+        x = self.net(x).squeeze(-1)
 
-        return feat, embed
+        return self.fc(x)
 
 
 # ------------------------------------------------
@@ -97,25 +103,29 @@ class FNIRSEncoder(nn.Module):
 
 class EEGFNIRSAttention(nn.Module):
 
-    def __init__(self, embed_dim=128):
+    def __init__(self, embed_dim=128, fnirs_time=120):
+
         super().__init__()
 
         self.query = nn.Linear(embed_dim, embed_dim)
+        self.key = nn.Conv1d(72, embed_dim, 1)
+
         self.scale = embed_dim ** -0.5
 
-    def forward(self, eeg_embed, fnirs_feat):
+    def forward(self, eeg_embed, fnirs_raw):
 
-        # fnirs_feat: (B,embed,T)
+        q = self.query(eeg_embed).unsqueeze(1)
 
-        q = self.query(eeg_embed).unsqueeze(1)       # (B,1,E)
-
-        k = fnirs_feat.transpose(1,2)                # (B,T,E)
-        v = k                                        # value = key
+        k = self.key(fnirs_raw).transpose(1,2)
 
         attn = torch.matmul(q, k.transpose(1,2)) * self.scale
-        attn = torch.softmax(attn, dim=-1)           # (B,1,T)
 
-        out = torch.matmul(attn, v)                  # (B,1,E)
+        attn = torch.softmax(attn, dim=-1)
+
+        v = fnirs_raw.transpose(1,2)
+
+        out = torch.matmul(attn, v)
+
         out = out.squeeze(1)
 
         return out
@@ -128,16 +138,16 @@ class EEGFNIRSAttention(nn.Module):
 class FusionModule(nn.Module):
 
     def __init__(self, embed_dim=128):
-
         super().__init__()
 
         self.net = nn.Sequential(
 
             nn.Linear(embed_dim * 2, 256),
             nn.GELU(),
-            nn.Dropout(0.5),
+            nn.Dropout(0.4),
 
-            nn.Linear(256, embed_dim)
+            nn.Linear(256, embed_dim),
+            nn.Dropout(0.4)
         )
 
     def forward(self, eeg, fnirs):
@@ -157,7 +167,7 @@ class Model(nn.Module):
 
         super().__init__()
 
-        embed_dim = 128
+        embed_dim = 128 + 64
 
         self.eeg_encoder = EEGEncoder(embed_dim)
         self.fnirs_encoder = FNIRSEncoder(embed_dim)
@@ -167,16 +177,12 @@ class Model(nn.Module):
 
         self.fusion = FusionModule(embed_dim)
 
-        self.embed_dropout = nn.Dropout(0.3)
-
         # shared classifier
 
         self.classifier = nn.Sequential(
-
             nn.Linear(embed_dim, 64),
             nn.GELU(),
             nn.Dropout(0.5),
-
             nn.Linear(64, 2)
         )
 
@@ -186,52 +192,38 @@ class Model(nn.Module):
 
             nn.Linear(embed_dim, 128),
             nn.GELU(),
-            nn.Dropout(0.4),
+            nn.Dropout(0.3),
 
             nn.Linear(128, args['TRAIL_GROUP_AMOUNT'])
         )
 
     def forward(self, eeg, fnirs):
 
-        # ----------------
-        # encoders
-        # ----------------
-
         eeg_embed = self.eeg_encoder(eeg)
-        eeg_embed = self.embed_dropout(eeg_embed)
 
-        fnirs_feat, fnirs_embed = self.fnirs_encoder(fnirs)
-        fnirs_feat = self.embed_dropout(fnirs_feat)
+        # attention refined fnirs
 
-        # ----------------
-        # cross modal attention
-        # ----------------
+        attn_fnirs = self.attention(eeg_embed, fnirs)
 
-        attn_fnirs = self.attention(eeg_embed, fnirs_feat)
-
-        # ----------------
-        # fusion
-        # ----------------
+        fnirs_embed = self.fnirs_encoder(
+            attn_fnirs.unsqueeze(-1).repeat(1,1,120)
+        )
 
         eeg_embed = self.embed_dropout(eeg_embed)
-        attn_fnirs = self.embed_dropout(attn_fnirs)
+        fnirs_embed = self.embed_dropout(fnirs_embed)
 
-        fusion_embed = self.fusion(eeg_embed, attn_fnirs)
+        fusion_embed = self.fusion(eeg_embed, fnirs_embed)
 
-        # ----------------
         # classification
-        # ----------------
 
         eeg_logits = self.classifier(eeg_embed)
-        fnirs_logits = self.classifier(attn_fnirs)
+        fnirs_logits = self.classifier(fnirs_embed)
         fusion_logits = self.classifier(fusion_embed)
 
-        # ----------------
-        # GRL (only fusion)
-        # ----------------
+        # GRL
 
         rev_eeg = grad_reverse(eeg_embed)
-        rev_fnirs = grad_reverse(attn_fnirs)
+        rev_fnirs = grad_reverse(fnirs_embed)
         rev_fusion = grad_reverse(fusion_embed)
 
         session_eeg = self.session_classifier(rev_eeg)
@@ -251,6 +243,6 @@ class Model(nn.Module):
             "session_fusion": session_fusion,
 
             "eeg_embed": eeg_embed,
-            "fnirs_embed": attn_fnirs,
+            "fnirs_embed": fnirs_embed,
             "fusion_embed": fusion_embed
         }
