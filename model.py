@@ -1,59 +1,61 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import random
 
 
-# ---------------------------------------
-# temporal compression
-# ---------------------------------------
+# -------------------------------------------------
+# Patch Embedding (break temporal memorization)
+# -------------------------------------------------
 
-class TemporalReduce(nn.Module):
+class PatchEmbed(nn.Module):
 
-    def __init__(self, cin, cout):
+    def __init__(self, cin, dim=16, patch=20):
 
         super().__init__()
 
-        self.conv = nn.Conv1d(
+        self.proj = nn.Conv1d(
             cin,
-            cout,
-            kernel_size=25,
-            stride=5,
-            padding=12
+            dim,
+            kernel_size=patch,
+            stride=patch
         )
 
-        self.norm = nn.GroupNorm(4, cout)
+        self.norm = nn.GroupNorm(4, dim)
 
-    def forward(self, x):
+    def forward(self,x):
 
-        x = self.conv(x)
+        x = self.proj(x)
         x = self.norm(x)
 
         return F.gelu(x)
 
 
-# ---------------------------------------
-# depthwise block
-# ---------------------------------------
+# -------------------------------------------------
+# Shared temporal encoder
+# -------------------------------------------------
 
-class DWBlock(nn.Module):
+class TemporalEncoder(nn.Module):
 
-    def __init__(self, c):
+    def __init__(self, dim=16):
 
         super().__init__()
 
         self.dw = nn.Conv1d(
-            c,
-            c,
-            kernel_size=7,
-            padding=3,
-            groups=c
+            dim,
+            dim,
+            kernel_size=5,
+            padding=2,
+            groups=dim
         )
 
-        self.pw = nn.Conv1d(c, c, 1)
+        self.pw = nn.Conv1d(dim,dim,1)
 
-        self.norm = nn.GroupNorm(4, c)
+        self.norm = nn.GroupNorm(4,dim)
 
-    def forward(self, x):
+        self.drop = nn.Dropout(0.5)
+
+    def forward(self,x):
 
         res = x
 
@@ -62,57 +64,54 @@ class DWBlock(nn.Module):
 
         x = self.norm(x)
 
-        return F.gelu(x + res)
+        x = F.gelu(x + res)
+
+        return self.drop(x)
 
 
-# ---------------------------------------
-# encoder
-# ---------------------------------------
+# -------------------------------------------------
+# Random temporal crop
+# -------------------------------------------------
 
-class Encoder(nn.Module):
+class RandomCrop(nn.Module):
 
-    def __init__(self, cin):
+    def __init__(self, size):
 
         super().__init__()
+        self.size = size
 
-        hidden = 24
+    def forward(self,x):
 
-        self.reduce = TemporalReduce(cin, hidden)
+        if not self.training:
+            return x
 
-        self.block1 = DWBlock(hidden)
-        self.block2 = DWBlock(hidden)
+        T = x.shape[-1]
 
-        self.drop = nn.Dropout(0.4)
+        if T <= self.size:
+            return x
 
-    def forward(self, x):
+        start = random.randint(0, T-self.size)
 
-        x = self.reduce(x)
-
-        x = self.block1(x)
-        x = self.block2(x)
-
-        x = self.drop(x)
-
-        return x
+        return x[...,start:start+self.size]
 
 
-# ---------------------------------------
-# statistical pooling
-# ---------------------------------------
+# -------------------------------------------------
+# Pooling
+# -------------------------------------------------
 
-class StatPool(nn.Module):
+class TokenPool(nn.Module):
 
-    def forward(self, x):
+    def forward(self,x):
 
         mean = x.mean(-1)
         std = x.std(-1)
 
-        return torch.cat([mean, std], dim=1)
+        return torch.cat([mean,std],dim=1)
 
 
-# ---------------------------------------
-# fusion
-# ---------------------------------------
+# -------------------------------------------------
+# Fusion
+# -------------------------------------------------
 
 class Fusion(nn.Module):
 
@@ -121,37 +120,44 @@ class Fusion(nn.Module):
         super().__init__()
 
         self.gate = nn.Sequential(
-            nn.Linear(dim * 2, dim),
+            nn.Linear(dim*2,dim),
             nn.Sigmoid()
         )
 
-    def forward(self, a, b):
+    def forward(self,a,b):
 
-        g = self.gate(torch.cat([a, b], dim=1))
+        g = self.gate(torch.cat([a,b],dim=1))
 
-        return g * a + (1 - g) * b
+        return g*a + (1-g)*b
 
 
-# ---------------------------------------
-# classifier
-# ---------------------------------------
+# -------------------------------------------------
+# Classifier
+# -------------------------------------------------
 
 class Classifier(nn.Module):
 
-    def __init__(self, dim):
+    def __init__(self,dim):
 
         super().__init__()
 
-        self.fc = nn.Linear(dim, 2)
+        self.net = nn.Sequential(
 
-    def forward(self, x):
+            nn.Linear(dim,8),
+            nn.GELU(),
+            nn.Dropout(0.5),
 
-        return self.fc(x)
+            nn.Linear(8,2)
+        )
+
+    def forward(self,x):
+
+        return self.net(x)
 
 
-# ---------------------------------------
-# model
-# ---------------------------------------
+# -------------------------------------------------
+# Model
+# -------------------------------------------------
 
 class Model(nn.Module):
 
@@ -159,29 +165,48 @@ class Model(nn.Module):
 
         super().__init__()
 
-        self.eeg_encoder = Encoder(28)
-        self.fnirs_encoder = Encoder(72)
+        dim = 16
 
-        self.pool = StatPool()
+        # random crop
+        self.crop_eeg = RandomCrop(500)
+        self.crop_fnirs = RandomCrop(100)
 
-        emb = 48  # hidden*2
+        # patch embedding
+        self.eeg_patch = PatchEmbed(28,dim,25)
+        self.fnirs_patch = PatchEmbed(72,dim,10)
 
+        # shared encoder
+        self.encoder = TemporalEncoder(dim)
+
+        # pool
+        self.pool = TokenPool()
+
+        emb = dim*2
+
+        # fusion
         self.fusion = Fusion(emb)
 
+        # classifiers
         self.cls_eeg = Classifier(emb)
         self.cls_fnirs = Classifier(emb)
         self.cls_fusion = Classifier(emb)
 
 
-    def forward(self, eeg, fnirs):
+    def forward(self,eeg,fnirs):
 
-        eeg = self.eeg_encoder(eeg)
-        fnirs = self.fnirs_encoder(fnirs)
+        eeg = self.crop_eeg(eeg)
+        fnirs = self.crop_fnirs(fnirs)
+
+        eeg = self.eeg_patch(eeg)
+        fnirs = self.fnirs_patch(fnirs)
+
+        eeg = self.encoder(eeg)
+        fnirs = self.encoder(fnirs)
 
         eeg_emb = self.pool(eeg)
         fnirs_emb = self.pool(fnirs)
 
-        fusion_emb = self.fusion(eeg_emb, fnirs_emb)
+        fusion_emb = self.fusion(eeg_emb,fnirs_emb)
 
         eeg_logits = self.cls_eeg(eeg_emb)
         fnirs_logits = self.cls_fnirs(fnirs_emb)
