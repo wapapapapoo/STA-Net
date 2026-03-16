@@ -77,24 +77,15 @@ class FNIRSEncoder(nn.Module):
             nn.GELU(),
             nn.Dropout(0.25),
 
-            nn.Conv1d(128, 128, 5, padding=2),
-            nn.BatchNorm1d(128),
+            nn.Conv1d(128, embed_dim, 5, padding=2),
+            nn.BatchNorm1d(embed_dim),
             nn.GELU(),
             nn.Dropout(0.25),
-
-            nn.AdaptiveAvgPool1d(1)
-        )
-
-        self.fc = nn.Sequential(
-            nn.Linear(128, embed_dim),
-            nn.Dropout(0.3)
         )
 
     def forward(self, x):
-
-        x = self.net(x).squeeze(-1)
-
-        return self.fc(x)
+        # (B,72,120) -> (B,E,120)
+        return self.net(x).squeeze(-1)
 
 
 # ------------------------------------------------
@@ -108,26 +99,27 @@ class EEGFNIRSAttention(nn.Module):
         super().__init__()
 
         self.query = nn.Linear(embed_dim, embed_dim)
-        self.key = nn.Conv1d(72, embed_dim, 1)
 
-        self.value = nn.Conv1d(72, embed_dim, 1)
+        self.key = nn.Conv1d(embed_dim, embed_dim, 1)
+        self.value = nn.Conv1d(embed_dim, embed_dim, 1)
 
         self.scale = embed_dim ** -0.5
 
-    def forward(self, eeg_embed, fnirs_raw):
+    def forward(self, eeg_embed, fnirs_feat):
 
-        q = self.query(eeg_embed).unsqueeze(1)
+        # eeg query
+        q = self.query(eeg_embed).unsqueeze(1)   # (B,1,E)
 
-        k = self.key(fnirs_raw).transpose(1,2)
-        v = self.value(fnirs_raw).transpose(1,2)
+        # fnirs feature
+        k = self.key(fnirs_feat).transpose(1,2)  # (B,T,E)
+        v = self.value(fnirs_feat).transpose(1,2)
 
         attn = torch.matmul(q, k.transpose(1,2)) * self.scale
-        attn = torch.softmax(attn, dim=-1)
+        attn = torch.softmax(attn, dim=-1)       # (B,1,T)
 
-        out = torch.matmul(attn, v)
+        out = v * attn.transpose(1,2)            # (B,T,E)
 
-        return out.squeeze(1)
-
+        return out.transpose(1,2)                # (B,E,T)
 
 # ------------------------------------------------
 # Fusion
