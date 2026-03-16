@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 class DSBlock(nn.Module):
 
-    def __init__(self, cin, cout, k, stride=1, drop=0.15):
+    def __init__(self, cin, cout, k, stride=1, drop=0.15, drop_path=0.1):
         super().__init__()
         self.depth = nn.Conv1d(
             cin, cin,
@@ -19,6 +19,8 @@ class DSBlock(nn.Module):
         self.drop = nn.Dropout1d(drop)
 
     def forward(self,x):
+        if self.training and torch.rand(1) < self.drop_path:
+            return x
         # x (B,C,T)
         x = self.depth(x)   # (B,C,T)
         x = self.point(x)   # (B,Cout,T)
@@ -39,18 +41,16 @@ class TemporalASPP(nn.Module):
         super().__init__()
         self.b1 = nn.Conv1d(cin, cout, 1)
         self.b2 = nn.Conv1d(cin, cout, 3, padding=2, dilation=2)
-        self.b3 = nn.Conv1d(cin, cout, 3, padding=4, dilation=4)
-        self.b4 = nn.Conv1d(cin, cout, 3, padding=8, dilation=8)
-        self.proj = nn.Conv1d(cout*4, cout, 1)
+        self.b3 = nn.Conv1d(cin, cout, 3, padding=6, dilation=6)
+        self.proj = nn.Conv1d(cout*3, cout, 1)
         self.drop = nn.Dropout1d(0.2)
 
     def forward(self,x):
         b1 = self.b1(x)
         b2 = self.b2(x)
         b3 = self.b3(x)
-        b4 = self.b4(x)
 
-        x = torch.cat([b1,b2,b3,b4],dim=1)
+        x = torch.cat([b1,b2,b3],dim=1)
         x = self.proj(x)
         x = self.drop(x)
         return x
@@ -225,32 +225,17 @@ class TemporalAlign(nn.Module):
 
 
 class CrossModalFusion(nn.Module):
-
-    def __init__(self, c=96):
-
+    def __init__(self,c=96):
         super().__init__()
-
-        self.eeg_gate = nn.Conv1d(c,c,1)
-        self.fnirs_gate = nn.Conv1d(c,c,1)
-
         self.mix = nn.Conv1d(c*2,c,1)
-
-        self.drop = nn.Dropout1d(0.25)
+        self.norm = nn.GroupNorm(8,c)
+        self.drop = nn.Dropout1d(0.3)
 
     def forward(self,eeg,fnirs):
-
-        g1 = torch.sigmoid(self.eeg_gate(eeg))
-        g2 = torch.sigmoid(self.fnirs_gate(fnirs))
-
-        eeg = eeg * g2
-        fnirs = fnirs * g1
-
         x = torch.cat([eeg,fnirs],dim=1)
-
         x = self.mix(x)
-
+        x = self.norm(x)
         x = self.drop(x)
-
         return x
 
 
@@ -301,9 +286,12 @@ class Classifier(nn.Module):
 
         self.net = nn.Sequential(
 
-            nn.Linear(in_dim,24),
+            nn.Linear(in_dim,48),
             nn.GELU(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.4),
+
+            nn.Linear(48,24),
+            nn.GELU(),
 
             nn.Linear(24,2)
         )
@@ -335,7 +323,7 @@ class GradReverse(torch.autograd.Function):
         return -ctx.alpha * grad_output, None
 
 
-def grad_reverse(x, alpha=1.0):
+def grad_reverse(x, alpha=0.2):
     return GradReverse.apply(x, alpha)
 
 
