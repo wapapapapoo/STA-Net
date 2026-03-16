@@ -328,7 +328,7 @@ class GradReverse(torch.autograd.Function):
         return -ctx.alpha * grad_output, None
 
 
-def grad_reverse(x, alpha=0.2):
+def grad_reverse(x, alpha=1):
     return GradReverse.apply(x, alpha)
 
 
