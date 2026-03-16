@@ -71,7 +71,6 @@ class FNIRSEncoder(nn.Module):
         super().__init__()
 
         self.net = nn.Sequential(
-
             nn.Conv1d(72, 128, 5, padding=2),
             nn.BatchNorm1d(128),
             nn.GELU(),
@@ -83,10 +82,13 @@ class FNIRSEncoder(nn.Module):
             nn.Dropout(0.25),
         )
 
-    def forward(self, x):
-        # (B,72,120) -> (B,E,120)
-        return self.net(x).squeeze(-1)
+        self.pool = nn.AdaptiveAvgPool1d(1)
 
+    def forward(self, x):
+        feat = self.net(x)           # (B,E,T)
+        embed = self.pool(feat).squeeze(-1)
+
+        return feat, embed
 
 # ------------------------------------------------
 # EEG guided fNIRS attention
@@ -99,27 +101,19 @@ class EEGFNIRSAttention(nn.Module):
         super().__init__()
 
         self.query = nn.Linear(embed_dim, embed_dim)
-
         self.key = nn.Conv1d(embed_dim, embed_dim, 1)
-        self.value = nn.Conv1d(embed_dim, embed_dim, 1)
 
         self.scale = embed_dim ** -0.5
 
     def forward(self, eeg_embed, fnirs_feat):
 
-        # eeg query
-        q = self.query(eeg_embed).unsqueeze(1)   # (B,1,E)
-
-        # fnirs feature
-        k = self.key(fnirs_feat).transpose(1,2)  # (B,T,E)
-        v = self.value(fnirs_feat).transpose(1,2)
+        q = self.query(eeg_embed).unsqueeze(1)      # (B,1,E)
+        k = self.key(fnirs_feat).transpose(1,2)     # (B,T,E)
 
         attn = torch.matmul(q, k.transpose(1,2)) * self.scale
-        attn = torch.softmax(attn, dim=-1)       # (B,1,T)
+        attn = torch.softmax(attn, dim=-1)          # (B,1,T)
 
-        out = v * attn.transpose(1,2)            # (B,T,E)
-
-        return out.transpose(1,2)                # (B,E,T)
+        return attn
 
 # ------------------------------------------------
 # Fusion
@@ -188,16 +182,15 @@ class Model(nn.Module):
         )
 
     def forward(self, eeg, fnirs):
-
         eeg_embed = self.eeg_encoder(eeg)
 
-        # attention refined fnirs
+        # fnirs feature
+        fnirs_feat = self.fnirs_encoder(fnirs)
 
-        attn_fnirs = self.attention(eeg_embed, fnirs)
+        mask = self.attention(eeg_embed, fnirs_feat)
 
-        fnirs_embed = self.fnirs_encoder(
-            attn_fnirs.unsqueeze(-1).repeat(1,1,120)
-        )
+        fnirs_feat = fnirs_feat * mask      # (B,E,T)
+        fnirs_embed = self.fnirs_encoder.pool(fnirs_feat)
 
         eeg_embed = self.embed_dropout(eeg_embed)
         fnirs_embed = self.embed_dropout(fnirs_embed)
