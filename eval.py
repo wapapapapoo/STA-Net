@@ -8,7 +8,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 BATCH_SIZE = 25
 FOLD = 3
-DATA_PATH = "data/model_input"
+DATA_PATH = "data/model_input_2d"
 RESULT_FILE = "results.txt"
 
 
