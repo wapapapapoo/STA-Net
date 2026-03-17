@@ -88,14 +88,14 @@ def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
 
         # loss.backward()
 
-        # torch.nn.utils.clip_grad_norm_(
-        #     model.parameters(),
-        #     1.
-        # )
+        torch.nn.utils.clip_grad_norm_(
+            model.parameters(),
+            1.
+        )
 
-        # for p in model.parameters():
-        #     if p.grad is not None:
-        #         p.grad += 0.001 * torch.randn_like(p.grad)
+        for p in model.parameters():
+            if p.grad is not None:
+                p.grad += 0.001 * torch.randn_like(p.grad)
 
         loss = loss1
 
