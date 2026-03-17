@@ -189,7 +189,7 @@ def main():
             train(model, train_loader, val_loader, nargs)
 
             test_acc, test_eeg_acc, test_fnirs_acc = evaluate(model, test_loader)
-            all_results.append((subject, session, test_acc))
+            all_results.append((subject, session, test_acc, test_eeg_acc, test_fnirs_acc))
 
     # ==============================
     # Summary
@@ -198,20 +198,40 @@ def main():
     print("; ===== FINAL RESULTS =====")
 
     subject_scores = {}
+    subject_scores_eeg = {}
+    subject_scores_fnirs = {}
 
-    for subject, fold, acc in all_results:
+    for subject, fold, acc, acc_eeg, acc_fnirs in all_results:
         if subject not in subject_scores:
             subject_scores[subject] = []
         subject_scores[subject].append(acc)
 
-    all_acc = []
+        if subject not in subject_scores_eeg:
+            subject_scores_eeg[subject] = []
+        subject_scores_eeg[subject].append(acc_eeg)
 
+        if subject not in subject_scores_fnirs:
+            subject_scores_fnirs[subject] = []
+        subject_scores_fnirs[subject].append(acc_fnirs)
+
+    all_acc = []
+    all_acc_eeg = []
+    all_acc_fnirs = []
     for subject in subject_scores:
         scores = subject_scores[subject]
+        scores_eeg = subject_scores_eeg[subject]
+        scores_fnirs = subject_scores_fnirs[subject]
         mean_acc = np.mean(scores)
+        mean_acc_eeg = np.mean(scores_eeg)
+        mean_acc_fnirs = np.mean(scores_fnirs)
         all_acc.extend(scores)
-        print(f"; {subject} mean_acc = {mean_acc:.4f} folds = {scores}")
-    print("; Overall mean accuracy:", np.mean(all_acc))
+        all_acc_eeg.extend(scores_eeg)
+        all_acc_fnirs.extend(scores_fnirs)
+        print(f"; sbj {subject} a {mean_acc:.4f} ea {mean_acc_eeg:.4f} fa {mean_acc_fnirs:.4f} "
+              f"| {scores} {scores_eeg} {scores_fnirs}")
+    print(f"; fusion: {np.mean(all_acc):.4f} ({np.std(all_acc):.4f}),"
+          f" eeg: {np.mean(all_acc_eeg):.4f} ({np.std(all_acc_eeg):.4f}),"
+          f" fnirs: {np.mean(all_acc_fnirs):.4f} ({np.std(all_acc_fnirs):.4f})")
 
 if __name__ == "__main__":
     main()
