@@ -72,15 +72,19 @@ def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
             logit1 = output1["fusion_logits"]
             logit2 = output2["fusion_logits"]
 
+            def safe_softmax(x, dim=1, eps=1e-6):
+                p = F.softmax(x, dim=dim)
+                return p.clamp(min=eps, max=1.0)
+
             kl = (
                 F.kl_div(
                     F.log_softmax(logit1, dim=1),
-                    F.softmax(logit2, dim=1),
+                    safe_softmax(logit2, dim=1),
                     reduction="batchmean"
                 ) +
                 F.kl_div(
                     F.log_softmax(logit2, dim=1),
-                    F.softmax(logit1, dim=1),
+                    safe_softmax(logit1, dim=1),
                     reduction="batchmean"
                 )
             ) / 2
