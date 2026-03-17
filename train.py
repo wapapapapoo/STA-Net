@@ -33,7 +33,7 @@ class LossModule(nn.Module):
             self.ce(output["session_fusion"], trial_group)
         )
 
-        loss = loss_main + min(0.3, (epoch / 20) * 0.3) * loss_session
+        loss = loss_main + max(0, (epoch - 20) / 30 * 0.3) * loss_session
 
         return loss
 
@@ -53,38 +53,44 @@ def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
 
         trial_group = trial_label // args["TRAIL_GROUP"]
 
-        # forward 1
-        output1 = model(eeg, fnirs)
-        output1["trial_group"] = trial_group
+        if epoch > 20:
+            # forward 1
+            output1 = model(eeg, fnirs)
+            output1["trial_group"] = trial_group
 
-        # forward 2
-        output2 = model(eeg, fnirs)
-        output2["trial_group"] = trial_group
+            # forward 2
+            output2 = model(eeg, fnirs)
+            output2["trial_group"] = trial_group
 
-        # CE loss
-        loss1 = loss_fn(output1, label, epoch)
-        loss2 = loss_fn(output2, label, epoch)
+            # CE loss
+            loss1 = loss_fn(output1, label, epoch)
+            loss2 = loss_fn(output2, label, epoch)
 
-        ce_loss = 0.5 * (loss1 + loss2)
+            ce_loss = 0.5 * (loss1 + loss2)
 
-        # KL consistency
-        logits1 = output1["fusion_logits"]
-        logits2 = output2["fusion_logits"]
+            # KL consistency
+            embed1 = output1["fusion_embed"]
+            embed2 = output2["fusion_embed"]
 
-        kl = (
-            F.kl_div(
-                F.log_softmax(logits1, dim=1),
-                F.softmax(logits2, dim=1),
-                reduction="batchmean"
-            ) +
-            F.kl_div(
-                F.log_softmax(logits2, dim=1),
-                F.softmax(logits1, dim=1),
-                reduction="batchmean"
-            )
-        ) / 2
+            kl = (
+                F.kl_div(
+                    F.log_softmax(embed1, dim=1),
+                    F.softmax(embed2, dim=1),
+                    reduction="batchmean"
+                ) +
+                F.kl_div(
+                    F.log_softmax(embed2, dim=1),
+                    F.softmax(embed1, dim=1),
+                    reduction="batchmean"
+                )
+            ) / 2
 
-        loss = ce_loss + kl
+            loss = ce_loss + kl
+        
+        else:
+            output = model(eeg, fnirs)
+            output["trial_group"] = trial_group
+            loss = loss_fn(output, label, epoch)
 
         loss.backward()
 
@@ -95,7 +101,7 @@ def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
 
         for p in model.parameters():
             if p.grad is not None:
-                p.grad += 0.001 * torch.randn_like(p.grad)
+                p.grad += 0.0001 * torch.randn_like(p.grad)
 
         optimizer.step()
         total_loss += loss.item()
