@@ -53,7 +53,7 @@ def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
 
         trial_group = trial_label // args["TRAIL_GROUP"]
 
-        if epoch > 20 and False:
+        if epoch > 20:
             # forward 1
             output1 = model(eeg, fnirs)
             output1["trial_group"] = trial_group
