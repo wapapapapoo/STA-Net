@@ -53,7 +53,7 @@ def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
 
         trial_group = trial_label // args["TRAIL_GROUP"]
 
-        if epoch > 20:
+        if epoch > 20 and False:
             # forward 1
             output1 = model(eeg, fnirs)
             output1["trial_group"] = trial_group
@@ -69,18 +69,18 @@ def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
             ce_loss = 0.5 * (loss1 + loss2)
 
             # KL consistency
-            embed1 = output1["fusion_embed"]
-            embed2 = output2["fusion_embed"]
+            logit1 = output1["fusion_logits"]
+            logit2 = output2["fusion_logits"]
 
             kl = (
                 F.kl_div(
-                    F.log_softmax(embed1, dim=1),
-                    F.softmax(embed2, dim=1),
+                    F.log_softmax(logit1, dim=1),
+                    F.softmax(logit2, dim=1),
                     reduction="batchmean"
                 ) +
                 F.kl_div(
-                    F.log_softmax(embed2, dim=1),
-                    F.softmax(embed1, dim=1),
+                    F.log_softmax(logit2, dim=1),
+                    F.softmax(logit1, dim=1),
                     reduction="batchmean"
                 )
             ) / 2
