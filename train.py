@@ -15,7 +15,7 @@ class LossModule(nn.Module):
 
         self.ce = nn.CrossEntropyLoss()
 
-    def forward(self, output, label):
+    def forward(self, output, label, epoch):
 
         target = torch.argmax(label, dim=1)
 
