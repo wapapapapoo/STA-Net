@@ -13,7 +13,7 @@ class LossModule(nn.Module):
 
         super().__init__()
 
-        self.ce = nn.CrossEntropyLoss()
+        self.ce = nn.CrossEntropyLoss(label_smoothing=0.1)
 
     def forward(self, output, label, epoch):
 
@@ -116,7 +116,7 @@ def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
 
 def compute_val_loss(model, loader):
 
-    ce = nn.CrossEntropyLoss()
+    ce = nn.CrossEntropyLoss(label_smoothing=0.1)
 
     model.eval()
 
