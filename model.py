@@ -128,7 +128,7 @@ class Model(nn.Module):
     def __init__(self, args):
         super().__init__()
 
-        d = args.embed_dim
+        d = 128
 
         # Encoders
         self.eeg_encoder = EEGEncoder(out_dim=d)
