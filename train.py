@@ -171,9 +171,11 @@ def train(model, train_loader, val_loader, args):
             args
         )
 
-        train_acc = evaluate(model, train_loader)
+        train_acc, train_eeg_acc, train_fnirs_acc = evaluate(model, train_loader)
 
-        val_acc = evaluate(model, val_loader)
+        val_acc, val_eeg_acc, val_fnirs_acc = evaluate(model, val_loader)
+
+        test_acc, test_eeg_acc, test_fnirs_acc = evaluate(model, args['test_loader'])
 
         val_loss = compute_val_loss(
             model,
@@ -184,9 +186,15 @@ def train(model, train_loader, val_loader, args):
             f"ep {epoch:02d} "
             f"tl {train_loss:.4f} "
             f"vl {val_loss:.4f} "
-            f"tacc {train_acc:.4f} "
-            f"vacc {val_acc:.4f} "
-            f"tacc {evaluate(model, args['test_loader'])} ", flush=True
+            f"ta {train_acc:.4f} "
+            f"tea {train_eeg_acc:.4f} "
+            f"tfa {train_fnirs_acc:.4f} "
+            f"va {val_acc:.4f} "
+            f"vea {val_eeg_acc:.4f} "
+            f"vfa {val_fnirs_acc:.4f} "
+            f"Ta {test_acc:.4f} "
+            f"Tea {test_eeg_acc:.4f} "
+            f"Tfa {test_fnirs_acc:.4f} ", flush=True
         )
 
     return model

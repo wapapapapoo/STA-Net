@@ -188,18 +188,8 @@ def main():
 
             train(model, train_loader, val_loader, nargs)
 
-            test_acc = evaluate(model, test_loader)
-            print(f"# subject: {subject}, session: {session}, test: {test_acc}")
-
+            test_acc, test_eeg_acc, test_fnirs_acc = evaluate(model, test_loader)
             all_results.append((subject, session, test_acc))
-            with open(RESULT_FILE, "a") as f:
-                f.write(
-                    str({
-                        "subject": subject,
-                        "fold": session,
-                        "test_acc": float(test_acc)
-                    }) + "\n"
-                )
 
     # ==============================
     # Summary
