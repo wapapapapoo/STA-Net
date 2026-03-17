@@ -6,6 +6,7 @@ from eval import evaluate
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
+
 class LossModule(nn.Module):
 
     def __init__(self):
@@ -14,17 +15,28 @@ class LossModule(nn.Module):
 
         self.ce = nn.CrossEntropyLoss()
 
-    def forward(self, output, label, epoch):
+    def forward(self, output, label):
 
         target = torch.argmax(label, dim=1)
 
-        loss = (
+        loss_main = (
             self.ce(output["eeg_logits"], target) +
             self.ce(output["fnirs_logits"], target) +
             self.ce(output["fusion_logits"], target)
         )
 
+        trial_group = output["trial_group"]
+
+        loss_session = (
+            self.ce(output["session_eeg"], trial_group) +
+            self.ce(output["session_fnirs"], trial_group) +
+            self.ce(output["session_fusion"], trial_group)
+        )
+
+        loss = loss_main + 0.5 * loss_session
+
         return loss
+
 
 
 
@@ -45,45 +57,47 @@ def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
         output1 = model(eeg, fnirs)
         output1["trial_group"] = trial_group
 
-        # forward 2
-        output2 = model(eeg, fnirs)
-        output2["trial_group"] = trial_group
+        # # forward 2
+        # output2 = model(eeg, fnirs)
+        # output2["trial_group"] = trial_group
 
         # CE loss
         loss1 = loss_fn(output1, label, epoch)
-        loss2 = loss_fn(output2, label, epoch)
+        # loss2 = loss_fn(output2, label, epoch)
 
-        ce_loss = 0.5 * (loss1 + loss2)
+        # ce_loss = 0.5 * (loss1 + loss2)
 
-        # KL consistency
-        logits1 = output1["fusion_logits"]
-        logits2 = output2["fusion_logits"]
+        # # KL consistency
+        # logits1 = output1["fusion_logits"]
+        # logits2 = output2["fusion_logits"]
 
-        kl = (
-            F.kl_div(
-                F.log_softmax(logits1, dim=1),
-                F.softmax(logits2, dim=1),
-                reduction="batchmean"
-            ) +
-            F.kl_div(
-                F.log_softmax(logits2, dim=1),
-                F.softmax(logits1, dim=1),
-                reduction="batchmean"
-            )
-        ) / 2
+        # kl = (
+        #     F.kl_div(
+        #         F.log_softmax(logits1, dim=1),
+        #         F.softmax(logits2, dim=1),
+        #         reduction="batchmean"
+        #     ) +
+        #     F.kl_div(
+        #         F.log_softmax(logits2, dim=1),
+        #         F.softmax(logits1, dim=1),
+        #         reduction="batchmean"
+        #     )
+        # ) / 2
 
-        loss = ce_loss + kl
+        # loss = ce_loss + kl
 
-        loss.backward()
+        # loss.backward()
 
-        torch.nn.utils.clip_grad_norm_(
-            model.parameters(),
-            1.
-        )
+        # torch.nn.utils.clip_grad_norm_(
+        #     model.parameters(),
+        #     1.
+        # )
 
-        for p in model.parameters():
-            if p.grad is not None:
-                p.grad += 0.001 * torch.randn_like(p.grad)
+        # for p in model.parameters():
+        #     if p.grad is not None:
+        #         p.grad += 0.001 * torch.randn_like(p.grad)
+
+        loss = loss1
 
         optimizer.step()
         total_loss += loss.item()

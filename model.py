@@ -1,163 +1,165 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import random
 
 
-# -------------------------------------------------
-# Patch Embedding (break temporal memorization)
-# -------------------------------------------------
+# ------------------------------------------------
+# Gradient Reversal Layer
+# ------------------------------------------------
 
-class PatchEmbed(nn.Module):
+class GradReverse(torch.autograd.Function):
 
-    def __init__(self, cin, dim=16, patch=20):
+    @staticmethod
+    def forward(ctx, x, alpha):
+        ctx.alpha = alpha
+        return x.view_as(x)
 
-        super().__init__()
-
-        self.proj = nn.Conv1d(
-            cin,
-            dim,
-            kernel_size=patch,
-            stride=patch
-        )
-
-        self.norm = nn.GroupNorm(4, dim)
-
-    def forward(self,x):
-
-        x = self.proj(x)
-        x = self.norm(x)
-
-        return F.gelu(x)
+    @staticmethod
+    def backward(ctx, grad_output):
+        return -ctx.alpha * grad_output, None
 
 
-# -------------------------------------------------
-# Shared temporal encoder
-# -------------------------------------------------
-
-class TemporalEncoder(nn.Module):
-
-    def __init__(self, dim=16):
-
-        super().__init__()
-
-        self.dw = nn.Conv1d(
-            dim,
-            dim,
-            kernel_size=5,
-            padding=2,
-            groups=dim
-        )
-
-        self.pw = nn.Conv1d(dim,dim,1)
-
-        self.norm = nn.GroupNorm(4,dim)
-
-        self.drop = nn.Dropout(0.5)
-
-    def forward(self,x):
-
-        res = x
-
-        x = self.dw(x)
-        x = self.pw(x)
-
-        x = self.norm(x)
-
-        x = F.gelu(x + res)
-
-        return self.drop(x)
+def grad_reverse(x, alpha=1.0):
+    return GradReverse.apply(x, alpha)
 
 
-# -------------------------------------------------
-# Random temporal crop
-# -------------------------------------------------
+# ------------------------------------------------
+# EEG Encoder
+# input: (B,28,600)
+# ------------------------------------------------
 
-class RandomCrop(nn.Module):
+class EEGEncoder(nn.Module):
 
-    def __init__(self, size):
-
-        super().__init__()
-        self.size = size
-
-    def forward(self,x):
-
-        if not self.training:
-            return x
-
-        T = x.shape[-1]
-
-        if T <= self.size:
-            return x
-
-        start = random.randint(0, T-self.size)
-
-        return x[...,start:start+self.size]
-
-
-# -------------------------------------------------
-# Pooling
-# -------------------------------------------------
-
-class TokenPool(nn.Module):
-
-    def forward(self,x):
-
-        mean = x.mean(-1)
-        std = x.std(-1)
-
-        return torch.cat([mean,std],dim=1)
-
-
-# -------------------------------------------------
-# Fusion
-# -------------------------------------------------
-
-class Fusion(nn.Module):
-
-    def __init__(self, dim):
-
-        super().__init__()
-
-        self.gate = nn.Sequential(
-            nn.Linear(dim*2,dim),
-            nn.Sigmoid()
-        )
-
-    def forward(self,a,b):
-
-        g = self.gate(torch.cat([a,b],dim=1))
-
-        return g*a + (1-g)*b
-
-
-# -------------------------------------------------
-# Classifier
-# -------------------------------------------------
-
-class Classifier(nn.Module):
-
-    def __init__(self,dim):
-
+    def __init__(self, embed_dim=128):
         super().__init__()
 
         self.net = nn.Sequential(
 
-            nn.Linear(dim,8),
+            nn.Conv1d(28, 64, 7, padding=3),
+            nn.BatchNorm1d(64),
             nn.GELU(),
-            nn.Dropout(0.5),
+            nn.Dropout(0.25),
 
-            nn.Linear(8,2)
+            nn.Conv1d(64, 128, 5, padding=2),
+            nn.BatchNorm1d(128),
+            nn.GELU(),
+            nn.Dropout(0.25),
+
+            nn.AdaptiveAvgPool1d(1)
         )
 
-    def forward(self,x):
+        self.fc = nn.Sequential(
+            nn.Linear(128, embed_dim),
+            nn.Dropout(0.3)
+        )
+
+    def forward(self, x):
+
+        x = self.net(x).squeeze(-1)
+
+        return self.fc(x)
+
+
+# ------------------------------------------------
+# fNIRS Encoder
+# input: (B,72,120)
+# ------------------------------------------------
+
+class FNIRSEncoder(nn.Module):
+
+    def __init__(self, embed_dim=128):
+        super().__init__()
+
+        self.net = nn.Sequential(
+
+            nn.Conv1d(72, 128, 5, padding=2),
+            nn.BatchNorm1d(128),
+            nn.GELU(),
+            nn.Dropout(0.25),
+
+            nn.Conv1d(128, 128, 5, padding=2),
+            nn.BatchNorm1d(128),
+            nn.GELU(),
+            nn.Dropout(0.25),
+
+            nn.AdaptiveAvgPool1d(1)
+        )
+
+        self.fc = nn.Sequential(
+            nn.Linear(128, embed_dim),
+            nn.Dropout(0.3)
+        )
+
+    def forward(self, x):
+
+        x = self.net(x).squeeze(-1)
+
+        return self.fc(x)
+
+
+# ------------------------------------------------
+# EEG guided fNIRS attention
+# ------------------------------------------------
+
+class EEGFNIRSAttention(nn.Module):
+
+    def __init__(self, embed_dim=128, fnirs_time=120):
+
+        super().__init__()
+
+        self.query = nn.Linear(embed_dim, embed_dim)
+        self.key = nn.Conv1d(72, embed_dim, 1)
+
+        self.scale = embed_dim ** -0.5
+
+    def forward(self, eeg_embed, fnirs_raw):
+
+        q = self.query(eeg_embed).unsqueeze(1)
+
+        k = self.key(fnirs_raw).transpose(1,2)
+
+        attn = torch.matmul(q, k.transpose(1,2)) * self.scale
+
+        attn = torch.softmax(attn, dim=-1)
+
+        v = fnirs_raw.transpose(1,2)
+
+        out = torch.matmul(attn, v)
+
+        out = out.squeeze(1)
+
+        return out
+
+
+# ------------------------------------------------
+# Fusion
+# ------------------------------------------------
+
+class FusionModule(nn.Module):
+
+    def __init__(self, embed_dim=128):
+        super().__init__()
+
+        self.net = nn.Sequential(
+
+            nn.Linear(embed_dim * 2, 256),
+            nn.GELU(),
+            nn.Dropout(0.4),
+
+            nn.Linear(256, embed_dim),
+            nn.Dropout(0.4)
+        )
+
+    def forward(self, eeg, fnirs):
+
+        x = torch.cat([eeg, fnirs], dim=1)
 
         return self.net(x)
 
 
-# -------------------------------------------------
+# ------------------------------------------------
 # Model
-# -------------------------------------------------
+# ------------------------------------------------
 
 class Model(nn.Module):
 
@@ -165,62 +167,82 @@ class Model(nn.Module):
 
         super().__init__()
 
-        dim = 16
+        embed_dim = 128 + 64
 
-        # random crop
-        self.crop_eeg = RandomCrop(500)
-        self.crop_fnirs = RandomCrop(100)
+        self.eeg_encoder = EEGEncoder(embed_dim)
+        self.fnirs_encoder = FNIRSEncoder(embed_dim)
+        self.embed_dropout = nn.Dropout(0.3)
 
-        # patch embedding
-        self.eeg_patch = PatchEmbed(28,dim,25)
-        self.fnirs_patch = PatchEmbed(72,dim,10)
+        self.attention = EEGFNIRSAttention(embed_dim)
 
-        # shared encoder
-        self.encoder = TemporalEncoder(dim)
+        self.fusion = FusionModule(embed_dim)
 
-        # pool
-        self.pool = TokenPool()
+        # shared classifier
 
-        emb = dim*2
+        self.classifier = nn.Sequential(
+            nn.Linear(embed_dim, 64),
+            nn.GELU(),
+            nn.Dropout(0.5),
+            nn.Linear(64, 2)
+        )
 
-        # fusion
-        self.fusion = Fusion(emb)
+        # session classifier
 
-        # classifiers
-        self.cls_eeg = Classifier(emb)
-        self.cls_fnirs = Classifier(emb)
-        self.cls_fusion = Classifier(emb)
+        self.session_classifier = nn.Sequential(
 
+            nn.Linear(embed_dim, 128),
+            nn.GELU(),
+            nn.Dropout(0.3),
 
-    def forward(self,eeg,fnirs):
+            nn.Linear(128, args['TRAIL_GROUP_AMOUNT'])
+        )
 
-        eeg = self.crop_eeg(eeg)
-        fnirs = self.crop_fnirs(fnirs)
+    def forward(self, eeg, fnirs):
 
-        eeg = self.eeg_patch(eeg)
-        fnirs = self.fnirs_patch(fnirs)
+        eeg_embed = self.eeg_encoder(eeg)
 
-        eeg = self.encoder(eeg)
-        fnirs = self.encoder(fnirs)
+        # attention refined fnirs
 
-        eeg_emb = self.pool(eeg)
-        fnirs_emb = self.pool(fnirs)
+        attn_fnirs = self.attention(eeg_embed, fnirs)
 
-        fusion_emb = self.fusion(eeg_emb,fnirs_emb)
+        fnirs_embed = self.fnirs_encoder(
+            attn_fnirs.unsqueeze(-1).repeat(1,1,120)
+        )
 
-        eeg_logits = self.cls_eeg(eeg_emb)
-        fnirs_logits = self.cls_fnirs(fnirs_emb)
-        fusion_logits = self.cls_fusion(fusion_emb)
+        eeg_embed = self.embed_dropout(eeg_embed)
+        fnirs_embed = self.embed_dropout(fnirs_embed)
+
+        fusion_embed = self.fusion(eeg_embed, fnirs_embed)
+
+        # classification
+
+        eeg_logits = self.classifier(eeg_embed)
+        fnirs_logits = self.classifier(fnirs_embed)
+        fusion_logits = self.classifier(fusion_embed)
+
+        # GRL
+
+        rev_eeg = grad_reverse(eeg_embed)
+        rev_fnirs = grad_reverse(fnirs_embed)
+        rev_fusion = grad_reverse(fusion_embed)
+
+        session_eeg = self.session_classifier(rev_eeg)
+        session_fnirs = self.session_classifier(rev_fnirs)
+        session_fusion = self.session_classifier(rev_fusion)
 
         return {
 
             "logits": fusion_logits,
 
-            "fusion_logits": fusion_logits,
             "eeg_logits": eeg_logits,
             "fnirs_logits": fnirs_logits,
+            "fusion_logits": fusion_logits,
 
-            "eeg_embed": eeg_emb,
-            "fnirs_embed": fnirs_emb,
-            "fusion_embed": fusion_emb
+            "session_eeg": session_eeg,
+            "session_fnirs": session_fnirs,
+            "session_fusion": session_fusion,
+
+            "eeg_embed": eeg_embed,
+            "fnirs_embed": fnirs_embed,
+            "fusion_embed": fusion_embed
         }
