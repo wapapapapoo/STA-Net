@@ -129,6 +129,8 @@ class Model(nn.Module):
         super().__init__()
 
         d = 128
+        num_classes = 2
+        num_sessions = 40
 
         # Encoders
         self.eeg_encoder = EEGEncoder(out_dim=d)
@@ -139,14 +141,14 @@ class Model(nn.Module):
         self.temporal_pool = TemporalAttention(d)
 
         # Classifiers
-        self.eeg_cls = nn.Linear(d, args.num_classes)
-        self.fnirs_cls = nn.Linear(d, args.num_classes)
-        self.fusion_cls = nn.Linear(2 * d, args.num_classes)
+        self.eeg_cls = nn.Linear(d, num_classes)
+        self.fnirs_cls = nn.Linear(d, num_classes)
+        self.fusion_cls = nn.Linear(2 * d, num_classes)
 
         # Session discriminators (domain adversarial)
-        self.session_eeg = nn.Linear(d, args.num_sessions)
-        self.session_fnirs = nn.Linear(d, args.num_sessions)
-        self.session_fusion = nn.Linear(2 * d, args.num_sessions)
+        self.session_eeg = nn.Linear(d, num_sessions)
+        self.session_fnirs = nn.Linear(d, num_sessions)
+        self.session_fusion = nn.Linear(2 * d, num_sessions)
 
     def forward(self, eeg, fnirs, alpha=0.0):
 
