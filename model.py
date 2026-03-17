@@ -35,15 +35,21 @@ class EEGEncoder(nn.Module):
             nn.Conv1d(in_ch, hidden, kernel_size=7, padding=3),
             nn.BatchNorm1d(hidden),
             nn.ReLU(),
+            nn.Dropout(0.3),
 
             nn.Conv1d(hidden, hidden, kernel_size=5, padding=2),
             nn.BatchNorm1d(hidden),
             nn.ReLU(),
+            nn.Dropout(0.3),
 
             nn.AdaptiveAvgPool1d(1)
         )
 
-        self.fc = nn.Linear(hidden, out_dim)
+        self.fc = nn.Sequential(
+            nn.Linear(hidden, out_dim),
+            nn.ReLU(),
+            nn.Dropout(0.4)
+        )
 
     def forward(self, x):
         # x: [B, 28, 600]
@@ -64,13 +70,19 @@ class FNIRSEncoder(nn.Module):
             nn.Conv1d(in_ch, hidden, kernel_size=15, padding=7),
             nn.BatchNorm1d(hidden),
             nn.ReLU(),
+            nn.Dropout(0.3),
 
             nn.Conv1d(hidden, hidden, kernel_size=15, padding=7),
             nn.BatchNorm1d(hidden),
             nn.ReLU(),
+            nn.Dropout(0.3),
         )
 
-        self.proj = nn.Linear(hidden, out_dim)
+        self.proj = nn.Sequential(
+            nn.Linear(hidden, out_dim),
+            nn.ReLU(),
+            nn.Dropout(0.4)
+        )
 
     def forward(self, x):
         # x: [B, 72, 120]
@@ -89,15 +101,16 @@ class FiLM(nn.Module):
         super().__init__()
         self.gamma = nn.Linear(dim, dim)
         self.beta = nn.Linear(dim, dim)
+        self.dropout = nn.Dropout(0.3)
 
     def forward(self, cond, x):
-        # cond: [B, d]
-        # x: [B, T, d]
+        cond = self.dropout(cond)
 
         gamma = self.gamma(cond).unsqueeze(1)
         beta = self.beta(cond).unsqueeze(1)
 
-        return gamma * x + beta
+        out = gamma * x + beta
+        return self.dropout(out)
 
 
 # ------------------------------------------------
@@ -108,14 +121,15 @@ class TemporalAttention(nn.Module):
     def __init__(self, dim):
         super().__init__()
         self.score = nn.Linear(dim, 1)
+        self.dropout = nn.Dropout(0.1)
 
     def forward(self, x):
-        # x: [B, T, d]
-
-        w = self.score(x)             # [B, T, 1]
+        w = self.score(x)
         w = torch.softmax(w, dim=1)
 
-        out = (w * x).sum(dim=1)      # [B, d]
+        w = self.dropout(w)
+
+        out = (w * x).sum(dim=1)
         return out
 
 
@@ -143,7 +157,12 @@ class Model(nn.Module):
         # Classifiers
         self.eeg_cls = nn.Linear(d, num_classes)
         self.fnirs_cls = nn.Linear(d, num_classes)
-        self.fusion_cls = nn.Linear(2 * d, num_classes)
+        self.fusion_cls = nn.Sequential(
+            nn.Linear(2 * d, d),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(d, num_classes)
+        )
 
         # Session discriminators (domain adversarial)
         self.session_eeg = nn.Linear(d, num_sessions)
