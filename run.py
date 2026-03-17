@@ -165,7 +165,7 @@ def main():
 
         for session in range(FOLD):
 
-            print(f"# subject: {subject}, session: {session}, train")
+            print(f"# subject: {subject}, session: {session}")
 
             (
                 eeg_train, fnirs_train, label_train,
@@ -195,7 +195,7 @@ def main():
     # Summary
     # ==============================
 
-    print("\n===== FINAL RESULTS =====")
+    print("; ===== FINAL RESULTS =====")
 
     subject_scores = {}
 
@@ -210,8 +210,8 @@ def main():
         scores = subject_scores[subject]
         mean_acc = np.mean(scores)
         all_acc.extend(scores)
-        print(f"{subject} mean_acc = {mean_acc:.4f} folds = {scores}")
-    print("\nOverall mean accuracy:", np.mean(all_acc))
+        print(f"; {subject} mean_acc = {mean_acc:.4f} folds = {scores}")
+    print("; Overall mean accuracy:", np.mean(all_acc))
 
 if __name__ == "__main__":
     main()
