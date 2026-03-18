@@ -63,19 +63,19 @@ class EEGEncoder(nn.Module):
 # ------------------------------------------------
 
 class FNIRSEncoder(nn.Module):
-    def __init__(self, in_ch=72, hidden=64, out_dim=128):
+    def __init__(self, in_ch=72, hidden=16, out_dim=128):
         super().__init__()
 
         self.conv = nn.Sequential(
             nn.Conv1d(in_ch, hidden, kernel_size=15, padding=7),
             nn.BatchNorm1d(hidden),
             nn.ReLU(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.5),
 
             nn.Conv1d(hidden, hidden, kernel_size=15, padding=7),
             nn.BatchNorm1d(hidden),
             nn.ReLU(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.5),
         )
 
         self.proj = nn.Sequential(
@@ -92,46 +92,6 @@ class FNIRSEncoder(nn.Module):
         x = torch.tanh(x)
         return x
 
-# # ------------------------------------------------
-# # CrossModalAttn
-# # ------------------------------------------------
-
-# class CrossModalAttention(nn.Module):
-#     def __init__(self, dim, Te=600, Tf=120, k_min=2.0, k_max=8.0):
-#         super().__init__()
-
-#         self.q_proj = nn.Linear(dim, dim)
-#         self.k_proj = nn.Linear(dim, dim)
-#         self.v_proj = nn.Linear(dim, dim)
-
-#         self.scale = dim ** -0.5
-
-#         mask = torch.zeros(Te, Tf, dtype=torch.bool)
-#         for t in range(Te):
-#             j0 = t // 20  # EEG→fNIRS 对齐（200Hz → 10Hz）
-#             j_min = int(j0 + 10 * k_min)
-#             j_max = int(j0 + 10 * k_max)
-#             j_min = max(0, j_min)
-#             j_max = min(Tf - 1, j_max)
-#             if j_min <= j_max:
-#                 mask[t, j_min:j_max+1] = True
-
-#         self.register_buffer("mask", mask)
-
-#     def forward(self, eeg_seq, fnirs_seq):
-#         B, Te, d = eeg_seq.shape
-#         Tf = fnirs_seq.shape[1]
-
-#         Q = self.q_proj(eeg_seq)
-#         K = self.k_proj(fnirs_seq)
-#         V = self.v_proj(fnirs_seq)
-
-#         attn = torch.matmul(Q, K.transpose(1, 2)) * self.scale  # [B, Te, Tf]
-#         attn = attn.masked_fill(~self.mask.unsqueeze(0), float('-inf'))
-#         attn = torch.softmax(attn, dim=-1)
-#         out = torch.matmul(attn, V)
-
-#         return out, attn
 
 # ------------------------------------------------
 # Model
@@ -190,7 +150,7 @@ class Model(nn.Module):
         # ------------------------------------------------
         # Fusion
         # ------------------------------------------------
-        fusion_embed = torch.cat([eeg_embed + fnirs_embed, eeg_embed * fnirs_embed], dim=-1)
+        fusion_embed = torch.cat([eeg_embed, fnirs_embed], dim=-1)
         fusion_logits = self.fusion_cls(fusion_embed)
 
         # ------------------------------------------------
