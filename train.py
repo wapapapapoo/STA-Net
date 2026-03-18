@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import random
 
 from eval import evaluate
 
@@ -53,13 +54,21 @@ def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
 
         trial_group = trial_label // args["TRAIL_GROUP"]
 
+        if random.random() < 0.5:
+            if random.random() < 0.5:
+                arch = 'eeg'
+            else:
+                arch = 'fnirs'
+        else:
+            arch = 'fusion'
+
         if epoch > 20:
             # forward 1
-            output1 = model(eeg, fnirs)
+            output1 = model(eeg, fnirs, arch)
             output1["trial_group"] = trial_group
 
             # forward 2
-            output2 = model(eeg, fnirs)
+            output2 = model(eeg, fnirs, arch)
             output2["trial_group"] = trial_group
 
             # CE loss
@@ -92,7 +101,7 @@ def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
             loss = ce_loss + max(0, (epoch - 20) / 30 * 0.3) * kl
         
         else:
-            output = model(eeg, fnirs, arch='eeg')
+            output = model(eeg, fnirs, arch)
             output["trial_group"] = trial_group
             loss = loss_fn(output, label, epoch)
 
