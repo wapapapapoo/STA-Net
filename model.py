@@ -63,7 +63,7 @@ class EEGEncoder(nn.Module):
 # ------------------------------------------------
 
 class FNIRSEncoder(nn.Module):
-    def __init__(self, in_ch=72, hidden=16, out_dim=128):
+    def __init__(self, in_ch=72, hidden=72, out_dim=128):
         super().__init__()
 
         self.conv = nn.Sequential(
@@ -72,10 +72,10 @@ class FNIRSEncoder(nn.Module):
             nn.ReLU(),
             nn.Dropout(0.5),
 
-            nn.Conv1d(hidden, hidden, kernel_size=15, padding=7),
-            nn.BatchNorm1d(hidden),
-            nn.ReLU(),
-            nn.Dropout(0.5),
+            # nn.Conv1d(hidden, hidden, kernel_size=15, padding=7),
+            # nn.BatchNorm1d(hidden),
+            # nn.ReLU(),
+            # nn.Dropout(0.5),
         )
 
         self.proj = nn.Sequential(
@@ -128,7 +128,7 @@ class Model(nn.Module):
         self.session_fnirs = nn.Linear(d, num_sessions)
         self.session_fusion = nn.Linear(2 * d, num_sessions)
 
-    def forward(self, eeg, fnirs, alpha=0.0):
+    def forward(self, eeg, fnirs, alpha=0.0, arch='fusion'):
 
         # ------------------------------------------------
         # EEG branch
@@ -150,7 +150,12 @@ class Model(nn.Module):
         # ------------------------------------------------
         # Fusion
         # ------------------------------------------------
-        fusion_embed = torch.cat([eeg_embed, fnirs_embed], dim=-1)
+        if arch == 'fusion':
+            fusion_embed = torch.cat([eeg_embed, fnirs_embed], dim=-1)
+        if arch == 'eeg':
+            fusion_embed = torch.cat([eeg_embed, eeg_embed], dim=-1)
+        if arch == 'fnirs':
+            fusion_embed = torch.cat([fnirs_embed, fnirs_embed], dim=-1)
         fusion_logits = self.fusion_cls(fusion_embed)
 
         # ------------------------------------------------
