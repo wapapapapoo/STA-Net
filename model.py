@@ -22,6 +22,12 @@ class GradReverse(torch.autograd.Function):
 def grad_reverse(x, alpha=1.0):
     return GradReverse.apply(x, alpha)
 
+def chunk_pool(x, chunks=6):
+    B, T, D = x.shape
+    x = x.view(B, chunks, T // chunks, D)   # [B, C, Tc, D]
+    x = x.mean(dim=2)                       # [B, C, D] 每段一个向量
+    x = x.max(dim=1).values                 # [B, D] 选最重要的段
+    return x
 
 # ------------------------------------------------
 # EEG Encoder (small + stable)
@@ -31,7 +37,7 @@ class EEGEncoder(nn.Module):
     def __init__(self, in_ch=28, hidden=64, out_dim=128):
         super().__init__()
 
-        self.net = nn.Sequential(
+        self.conv = nn.Sequential(
             nn.Conv1d(in_ch, hidden, kernel_size=7, padding=3),
             nn.BatchNorm1d(hidden),
             nn.ReLU(),
@@ -41,22 +47,15 @@ class EEGEncoder(nn.Module):
             nn.BatchNorm1d(hidden),
             nn.ReLU(),
             nn.Dropout(0.3),
-
-            nn.AdaptiveAvgPool1d(1)
         )
 
-        self.fc = nn.Sequential(
-            nn.Linear(hidden, out_dim),
-            nn.ReLU(),
-            nn.Dropout(0.4)
-        )
+        self.proj = nn.Linear(hidden, out_dim)
 
     def forward(self, x):
-        # x: [B, 28, 600]
-        x = self.net(x).squeeze(-1)
-        x = self.fc(x)
-        x = torch.tanh(x)
-        return x  # [B, d]
+        x = self.conv(x)          # [B, hidden, T]
+        x = x.transpose(1, 2)     # [B, T, hidden]
+        x = self.proj(x)          # [B, T, d]
+        return torch.tanh(x)
 
 
 # ------------------------------------------------
@@ -93,59 +92,46 @@ class FNIRSEncoder(nn.Module):
         x = torch.tanh(x)
         return x
 
-
 # ------------------------------------------------
-# FiLM Modulation (EEG → fNIRS)
+# CrossModalAttn
 # ------------------------------------------------
 
-class FiLM(nn.Module):
-    def __init__(self, dim):
+class CrossModalAttention(nn.Module):
+    def __init__(self, dim, Te=600, Tf=120, k_min=2.0, k_max=8.0):
         super().__init__()
-        self.gamma = nn.Linear(dim, dim)
-        self.beta = nn.Linear(dim, dim)
 
-        # 新增：控制强度
-        self.gate = nn.Sequential(
-            nn.Linear(dim, dim),
-            nn.Sigmoid()
-        )
+        self.q_proj = nn.Linear(dim, dim)
+        self.k_proj = nn.Linear(dim, dim)
+        self.v_proj = nn.Linear(dim, dim)
 
-        self.dropout = nn.Dropout(0.3)
+        self.scale = dim ** -0.5
 
-    def forward(self, cond, x):
-        cond = self.dropout(cond)
+        mask = torch.zeros(Te, Tf, dtype=torch.bool)
+        for t in range(Te):
+            j0 = t // 20  # EEG→fNIRS 对齐（200Hz → 10Hz）
+            j_min = int(j0 + 10 * k_min)
+            j_max = int(j0 + 10 * k_max)
+            j_min = max(0, j_min)
+            j_max = min(Tf - 1, j_max)
+            if j_min <= j_max:
+                mask[t, j_min:j_max+1] = True
 
-        gamma = self.gamma(cond).unsqueeze(1)
-        beta = self.beta(cond).unsqueeze(1)
+        self.register_buffer("mask", mask)
 
-        delta = gamma * x + beta
+    def forward(self, eeg_seq, fnirs_seq):
+        B, Te, d = eeg_seq.shape
+        Tf = fnirs_seq.shape[1]
 
-        g = self.gate(cond).unsqueeze(1)
+        Q = self.q_proj(eeg_seq)
+        K = self.k_proj(fnirs_seq)
+        V = self.v_proj(fnirs_seq)
 
-        out = x + 0.1 * g * delta
+        attn = torch.matmul(Q, K.transpose(1, 2)) * self.scale  # [B, Te, Tf]
+        attn = attn.masked_fill(~self.mask.unsqueeze(0), float('-inf'))
+        attn = torch.softmax(attn, dim=-1)
+        out = torch.matmul(attn, V)
 
-        return self.dropout(out)
-
-
-# ------------------------------------------------
-# Temporal Attention Pooling (lightweight)
-# ------------------------------------------------
-
-class TemporalAttention(nn.Module):
-    def __init__(self, dim):
-        super().__init__()
-        self.score = nn.Linear(dim, 1)
-        self.dropout = nn.Dropout(0.1)
-
-    def forward(self, x):
-        w = self.score(x)
-        w = torch.softmax(w, dim=1)
-
-        w = self.dropout(w)
-
-        out = (w * x).sum(dim=1)
-        return out
-
+        return out, attn
 
 # ------------------------------------------------
 # Model
@@ -164,9 +150,7 @@ class Model(nn.Module):
         self.eeg_encoder = EEGEncoder(out_dim=d)
         self.fnirs_encoder = FNIRSEncoder(out_dim=d)
 
-        # Cross-modal (EEG → fNIRS)
-        self.film = FiLM(d)
-        self.temporal_pool = TemporalAttention(d)
+        self.cross_attn = CrossModalAttention(dim=d, k_min=5, k_max=10)
 
         # Classifiers
         self.eeg_cls = nn.Linear(d, num_classes)
@@ -188,32 +172,24 @@ class Model(nn.Module):
         # ------------------------------------------------
         # EEG branch
         # ------------------------------------------------
-        eeg_embed = self.eeg_encoder(eeg)   # [B, d]
-        eeg_logits = self.eeg_cls(eeg_embed)
+        eeg_seq = self.eeg_encoder(eeg)   # [B, T, d]
 
         # ------------------------------------------------
         # fNIRS branch
         # ------------------------------------------------
         fnirs_feat = self.fnirs_encoder(fnirs)   # [B, T, d]
 
-        # EEG → FiLM modulation
-        fnirs_feat = self.film(eeg_embed, fnirs_feat)
+        aligned_fnirs, attn = self.cross_attn(eeg_seq, fnirs_feat)  # [B, Te, d]
+        eeg_embed = chunk_pool(eeg_seq)
+        fnirs_embed = chunk_pool(aligned_fnirs)
 
-        # Temporal pooling
-        fnirs_embed = self.temporal_pool(fnirs_feat)  # [B, d]
+        eeg_logits = self.eeg_cls(eeg_embed)
         fnirs_logits = self.fnirs_cls(fnirs_embed)
 
         # ------------------------------------------------
         # Fusion
         # ------------------------------------------------
-        gate = torch.sigmoid(
-            (eeg_embed * fnirs_embed).sum(dim=-1, keepdim=True)
-        )  # [B, 1]
-        fusion_embed = torch.cat([
-            eeg_embed,
-            gate * fnirs_embed
-        ], dim=-1)
-        # fusion_embed = torch.cat([eeg_embed, fnirs_embed], dim=-1)
+        fusion_embed = torch.cat([eeg_embed, fnirs_embed], dim=-1)
         fusion_logits = self.fusion_cls(fusion_embed)
 
         # ------------------------------------------------
