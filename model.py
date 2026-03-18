@@ -155,13 +155,13 @@ class Model(nn.Module):
         # Classifiers
         self.eeg_cls = nn.Linear(d, num_classes)
         self.fnirs_cls = nn.Linear(d, num_classes)
-        # self.fusion_cls = nn.Sequential(
-        #     nn.Linear(2 * d, d),
-        #     nn.ReLU(),
-        #     nn.Dropout(0.5),
-        #     nn.Linear(d, num_classes)
-        # )
-        self.fusion_cls = nn.Linear(2 * d, num_classes)
+        self.fusion_cls = nn.Sequential(
+            nn.Linear(2 * d, d),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(d, num_classes)
+        )
+        # self.fusion_cls = nn.Linear(2 * d, num_classes)
 
         # Session discriminators (domain adversarial)
         self.session_eeg = nn.Linear(d, num_sessions)
@@ -190,7 +190,7 @@ class Model(nn.Module):
         # ------------------------------------------------
         # Fusion
         # ------------------------------------------------
-        fusion_embed = torch.cat([eeg_embed, fnirs_embed], dim=-1)
+        fusion_embed = torch.cat([eeg_embed + fnirs_embed, eeg_embed * fnirs_embed], dim=-1)
         fusion_logits = self.fusion_cls(fusion_embed)
 
         # ------------------------------------------------
