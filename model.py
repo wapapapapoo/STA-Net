@@ -180,26 +180,26 @@ class Model(nn.Module):
         # ------------------------------------------------
         # fNIRS branch
         # ------------------------------------------------
-        fnirs_feat = self.fnirs_encoder(fnirs)   # [B, T, d]
+        # fnirs_feat = self.fnirs_encoder(fnirs)   # [B, T, d]
 
         # EEG → FiLM modulation
-        fnirs_feat = self.film(eeg_embed, fnirs_feat)
+        # fnirs_feat = self.film(eeg_embed, fnirs_feat)
 
         # Temporal pooling
-        fnirs_embed = self.temporal_pool(fnirs_feat)  # [B, d]
-        fnirs_logits = self.fnirs_cls(fnirs_embed)
+        # fnirs_embed = self.temporal_pool(fnirs_feat)  # [B, d]
+        # fnirs_logits = self.fnirs_cls(fnirs_embed)
 
         # ------------------------------------------------
         # Fusion
         # ------------------------------------------------
-        fusion_embed = torch.cat([eeg_embed, fnirs_embed], dim=-1)
+        fusion_embed = torch.cat([eeg_embed, eeg_embed], dim=-1)
         fusion_logits = self.fusion_cls(fusion_embed)
 
         # ------------------------------------------------
         # Domain adversarial (cross-session)
         # ------------------------------------------------
         rev_eeg = grad_reverse(eeg_embed, alpha)
-        rev_fnirs = grad_reverse(fnirs_embed, alpha)
+        rev_fnirs = grad_reverse(eeg_embed, alpha)
         rev_fusion = grad_reverse(fusion_embed, alpha)
 
         session_eeg = self.session_eeg(rev_eeg)
@@ -210,7 +210,7 @@ class Model(nn.Module):
             "logits": fusion_logits,
 
             "eeg_logits": eeg_logits,
-            "fnirs_logits": fnirs_logits,
+            "fnirs_logits": eeg_logits,
             "fusion_logits": fusion_logits,
 
             "session_eeg": session_eeg,
@@ -218,6 +218,6 @@ class Model(nn.Module):
             "session_fusion": session_fusion,
 
             "eeg_embed": eeg_embed,
-            "fnirs_embed": fnirs_embed,
+            "fnirs_embed": eeg_embed,
             "fusion_embed": fusion_embed
         }
