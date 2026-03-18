@@ -55,6 +55,7 @@ class EEGEncoder(nn.Module):
         # x: [B, 28, 600]
         x = self.net(x).squeeze(-1)
         x = self.fc(x)
+        x = torch.tanh(x)
         return x  # [B, d]
 
 
@@ -89,6 +90,7 @@ class FNIRSEncoder(nn.Module):
         x = self.conv(x)              # [B, hidden, T]
         x = x.transpose(1, 2)         # [B, T, hidden]
         x = self.proj(x)              # [B, T, d]
+        x = torch.tanh(x)
         return x
 
 
@@ -101,6 +103,13 @@ class FiLM(nn.Module):
         super().__init__()
         self.gamma = nn.Linear(dim, dim)
         self.beta = nn.Linear(dim, dim)
+
+        # 新增：控制强度
+        self.gate = nn.Sequential(
+            nn.Linear(dim, dim),
+            nn.Sigmoid()
+        )
+
         self.dropout = nn.Dropout(0.3)
 
     def forward(self, cond, x):
@@ -109,7 +118,12 @@ class FiLM(nn.Module):
         gamma = self.gamma(cond).unsqueeze(1)
         beta = self.beta(cond).unsqueeze(1)
 
-        out = gamma * x + beta
+        delta = gamma * x + beta
+
+        g = self.gate(cond).unsqueeze(1)
+
+        out = x + 0.1 * g * delta
+
         return self.dropout(out)
 
 
@@ -192,7 +206,14 @@ class Model(nn.Module):
         # ------------------------------------------------
         # Fusion
         # ------------------------------------------------
-        fusion_embed = torch.cat([eeg_embed, fnirs_embed], dim=-1)
+        gate = torch.sigmoid(
+            (eeg_embed * fnirs_embed).sum(dim=-1, keepdim=True)
+        )  # [B, 1]
+        fusion_embed = torch.cat([
+            eeg_embed,
+            gate * fnirs_embed
+        ], dim=-1)
+        # fusion_embed = torch.cat([eeg_embed, fnirs_embed], dim=-1)
         fusion_logits = self.fusion_cls(fusion_embed)
 
         # ------------------------------------------------
