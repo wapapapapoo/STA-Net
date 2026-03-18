@@ -189,7 +189,7 @@ class Model(nn.Module):
         # ------------------------------------------------
         # Fusion
         # ------------------------------------------------
-        fusion_embed = torch.cat([eeg_embed, fnirs_embed], dim=-1)
+        fusion_embed = torch.cat([eeg_embed, eeg_embed + fnirs_embed], dim=-1)
         fusion_logits = self.fusion_cls(fusion_embed)
 
         # ------------------------------------------------
