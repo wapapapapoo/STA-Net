@@ -92,46 +92,46 @@ class FNIRSEncoder(nn.Module):
         x = torch.tanh(x)
         return x
 
-# ------------------------------------------------
-# CrossModalAttn
-# ------------------------------------------------
+# # ------------------------------------------------
+# # CrossModalAttn
+# # ------------------------------------------------
 
-class CrossModalAttention(nn.Module):
-    def __init__(self, dim, Te=600, Tf=120, k_min=2.0, k_max=8.0):
-        super().__init__()
+# class CrossModalAttention(nn.Module):
+#     def __init__(self, dim, Te=600, Tf=120, k_min=2.0, k_max=8.0):
+#         super().__init__()
 
-        self.q_proj = nn.Linear(dim, dim)
-        self.k_proj = nn.Linear(dim, dim)
-        self.v_proj = nn.Linear(dim, dim)
+#         self.q_proj = nn.Linear(dim, dim)
+#         self.k_proj = nn.Linear(dim, dim)
+#         self.v_proj = nn.Linear(dim, dim)
 
-        self.scale = dim ** -0.5
+#         self.scale = dim ** -0.5
 
-        mask = torch.zeros(Te, Tf, dtype=torch.bool)
-        for t in range(Te):
-            j0 = t // 20  # EEG→fNIRS 对齐（200Hz → 10Hz）
-            j_min = int(j0 + 10 * k_min)
-            j_max = int(j0 + 10 * k_max)
-            j_min = max(0, j_min)
-            j_max = min(Tf - 1, j_max)
-            if j_min <= j_max:
-                mask[t, j_min:j_max+1] = True
+#         mask = torch.zeros(Te, Tf, dtype=torch.bool)
+#         for t in range(Te):
+#             j0 = t // 20  # EEG→fNIRS 对齐（200Hz → 10Hz）
+#             j_min = int(j0 + 10 * k_min)
+#             j_max = int(j0 + 10 * k_max)
+#             j_min = max(0, j_min)
+#             j_max = min(Tf - 1, j_max)
+#             if j_min <= j_max:
+#                 mask[t, j_min:j_max+1] = True
 
-        self.register_buffer("mask", mask)
+#         self.register_buffer("mask", mask)
 
-    def forward(self, eeg_seq, fnirs_seq):
-        B, Te, d = eeg_seq.shape
-        Tf = fnirs_seq.shape[1]
+#     def forward(self, eeg_seq, fnirs_seq):
+#         B, Te, d = eeg_seq.shape
+#         Tf = fnirs_seq.shape[1]
 
-        Q = self.q_proj(eeg_seq)
-        K = self.k_proj(fnirs_seq)
-        V = self.v_proj(fnirs_seq)
+#         Q = self.q_proj(eeg_seq)
+#         K = self.k_proj(fnirs_seq)
+#         V = self.v_proj(fnirs_seq)
 
-        attn = torch.matmul(Q, K.transpose(1, 2)) * self.scale  # [B, Te, Tf]
-        attn = attn.masked_fill(~self.mask.unsqueeze(0), float('-inf'))
-        attn = torch.softmax(attn, dim=-1)
-        out = torch.matmul(attn, V)
+#         attn = torch.matmul(Q, K.transpose(1, 2)) * self.scale  # [B, Te, Tf]
+#         attn = attn.masked_fill(~self.mask.unsqueeze(0), float('-inf'))
+#         attn = torch.softmax(attn, dim=-1)
+#         out = torch.matmul(attn, V)
 
-        return out, attn
+#         return out, attn
 
 # ------------------------------------------------
 # Model
@@ -150,7 +150,7 @@ class Model(nn.Module):
         self.eeg_encoder = EEGEncoder(out_dim=d)
         self.fnirs_encoder = FNIRSEncoder(out_dim=d)
 
-        self.cross_attn = CrossModalAttention(dim=d, k_min=5, k_max=10)
+        # self.cross_attn = CrossModalAttention(dim=d, k_min=5, k_max=10)
 
         # Classifiers
         self.eeg_cls = nn.Linear(d, num_classes)
@@ -177,11 +177,11 @@ class Model(nn.Module):
         # ------------------------------------------------
         # fNIRS branch
         # ------------------------------------------------
-        fnirs_feat = self.fnirs_encoder(fnirs)   # [B, T, d]
+        fnirs_seq = self.fnirs_encoder(fnirs)   # [B, T, d]
 
-        aligned_fnirs, attn = self.cross_attn(eeg_seq, fnirs_feat)  # [B, Te, d]
+        # aligned_fnirs, attn = self.cross_attn(eeg_seq, fnirs_feat)  # [B, Te, d]
         eeg_embed = chunk_pool(eeg_seq)
-        fnirs_embed = chunk_pool(aligned_fnirs)
+        fnirs_embed = chunk_pool(fnirs_seq)
 
         eeg_logits = self.eeg_cls(eeg_embed)
         fnirs_logits = self.fnirs_cls(fnirs_embed)
