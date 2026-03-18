@@ -64,11 +64,11 @@ def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
 
         if epoch > 20:
             # forward 1
-            output1 = model(eeg, fnirs, arch)
+            output1 = model(eeg, fnirs, arch=arch)
             output1["trial_group"] = trial_group
 
             # forward 2
-            output2 = model(eeg, fnirs, arch)
+            output2 = model(eeg, fnirs, arch=arch)
             output2["trial_group"] = trial_group
 
             # CE loss
@@ -101,7 +101,7 @@ def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
             loss = ce_loss + max(0, (epoch - 20) / 30 * 0.3) * kl
         
         else:
-            output = model(eeg, fnirs, arch)
+            output = model(eeg, fnirs, arch=arch)
             output["trial_group"] = trial_group
             loss = loss_fn(output, label, epoch)
 
