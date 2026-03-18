@@ -22,7 +22,7 @@ class LossModule(nn.Module):
 
         loss_main = (
             self.ce(output["eeg_logits"], target) +
-            self.ce(output["fnirs_logits"], target) +
+            # self.ce(output["fnirs_logits"], target) +
             self.ce(output["fusion_logits"], target)
         )
 
