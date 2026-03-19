@@ -22,7 +22,7 @@ class LossModule(nn.Module):
 
         loss_main = (
             self.ce(output["eeg_logits"], target) +
-            self.ce(output["fnirs_logits"], target) +
+            # self.ce(output["fnirs_logits"], target) +
             self.ce(output["fusion_logits"], target)
         )
 
@@ -34,7 +34,7 @@ class LossModule(nn.Module):
             self.ce(output["session_fusion"], trial_group)
         )
 
-        loss = loss_main + max(0, (epoch - 20) / 30 * 0.3) * loss_session
+        loss = loss_main #+ max(0, (epoch - 20) / 30 * 0.3) * loss_session
 
         return loss
 
@@ -81,29 +81,27 @@ def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
             ce_loss = 0.5 * (loss1 + loss2)
 
             # KL consistency
+            logit1 = output1["fusion_logits"]
+            logit2 = output2["fusion_logits"]
+
             def safe_softmax(x, dim=1, eps=1e-6):
                 p = F.softmax(x, dim=dim)
                 return p.clamp(min=eps, max=1.0)
 
-            def kl(logit1, logit2):
-                return (
-                    F.kl_div(
-                        F.log_softmax(logit1, dim=1),
-                        safe_softmax(logit2, dim=1),
-                        reduction="batchmean"
-                    ) +
-                    F.kl_div(
-                        F.log_softmax(logit2, dim=1),
-                        safe_softmax(logit1, dim=1),
-                        reduction="batchmean"
-                    )
-                ) / 2
+            kl = (
+                F.kl_div(
+                    F.log_softmax(logit1, dim=1),
+                    safe_softmax(logit2, dim=1),
+                    reduction="batchmean"
+                ) +
+                F.kl_div(
+                    F.log_softmax(logit2, dim=1),
+                    safe_softmax(logit1, dim=1),
+                    reduction="batchmean"
+                )
+            ) / 2
 
-            loss = ce_loss + max(0, (epoch - 20) / 30 * 0.3) * (
-                kl(output1["fusion_logits"], output2["fusion_logits"]) +
-                kl(output1["eeg_logits"], output2["eeg_logits"]) +
-                kl(output1["fnirs_logits"], output2["fnirs_logits"])            
-            )
+            loss = ce_loss + max(0, (epoch - 20) / 30 * 0.3) * kl
         
         else:
             output = model(eeg, fnirs, arch=arch)
