@@ -65,7 +65,7 @@ def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
             else:
                 arch = 'rev-fusion'
 
-        if epoch > 20 and False:
+        if epoch > 20:
             # forward 1
             output1 = model(eeg, fnirs, arch=arch)
             output1["trial_group"] = trial_group
@@ -81,27 +81,29 @@ def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
             ce_loss = 0.5 * (loss1 + loss2)
 
             # KL consistency
-            logit1 = output1["fusion_logits"]
-            logit2 = output2["fusion_logits"]
-
             def safe_softmax(x, dim=1, eps=1e-6):
                 p = F.softmax(x, dim=dim)
                 return p.clamp(min=eps, max=1.0)
 
-            kl = (
-                F.kl_div(
-                    F.log_softmax(logit1, dim=1),
-                    safe_softmax(logit2, dim=1),
-                    reduction="batchmean"
-                ) +
-                F.kl_div(
-                    F.log_softmax(logit2, dim=1),
-                    safe_softmax(logit1, dim=1),
-                    reduction="batchmean"
-                )
-            ) / 2
+            def kl(logit1, logit2):
+                return (
+                    F.kl_div(
+                        F.log_softmax(logit1, dim=1),
+                        safe_softmax(logit2, dim=1),
+                        reduction="batchmean"
+                    ) +
+                    F.kl_div(
+                        F.log_softmax(logit2, dim=1),
+                        safe_softmax(logit1, dim=1),
+                        reduction="batchmean"
+                    )
+                ) / 2
 
-            loss = ce_loss + max(0, (epoch - 20) / 30 * 0.3) * kl
+            loss = ce_loss + max(0, (epoch - 20) / 30 * 0.3) * (
+                kl(output1["fusion_logits"], output2["fusion_logits"]) +
+                kl(output1["eeg_logits"], output2["eeg_logits"]) +
+                kl(output1["fnirs_logits"], output2["fnirs_logits"])            
+            )
         
         else:
             output = model(eeg, fnirs, arch=arch)
