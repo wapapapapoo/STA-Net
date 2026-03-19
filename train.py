@@ -22,16 +22,16 @@ class LossModule(nn.Module):
 
         loss_main = (
             self.ce(output["eeg_logits"], target) +
-            # self.ce(output["fnirs_logits"], target) +
+            self.ce(output["fnirs_logits"], target) +
             self.ce(output["fusion_logits"], target)
         )
 
         trial_group = output["trial_group"]
 
         loss_session = (
-            # self.ce(output["session_eeg"], trial_group) +
-            self.ce(output["session_fnirs"], trial_group)# +
-            # self.ce(output["session_fusion"], trial_group)
+            self.ce(output["session_eeg"], trial_group) +
+            self.ce(output["session_fnirs"], trial_group) +
+            self.ce(output["session_fusion"], trial_group)
         )
 
         loss = loss_main + max(0, (epoch - 20) / 30 * 0.3) * loss_session

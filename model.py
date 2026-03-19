@@ -228,7 +228,14 @@ class Model(nn.Module):
         # -------------------------
         # fusion
         # -------------------------
-        fused = self.fusion(eeg_embed, fnirs_embed)
+        if arch == 'fusion':
+            fused = self.fusion(eeg_embed, fnirs_embed)
+        elif arch == 'rev-fusion':
+            fused = self.fusion(fnirs_embed, eeg_embed)
+        elif arch == 'eeg':
+            fused = self.fusion(eeg_embed, eeg_embed)
+        elif arch == 'fnirs':
+            fused = self.fusion(fnirs_embed, fnirs_embed)
         fusion_logits = self.cls(fused)
 
         # -------------------------
