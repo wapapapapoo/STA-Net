@@ -60,7 +60,10 @@ def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
             else:
                 arch = 'fnirs'
         else:
-            arch = 'fusion'
+            if random.random() < 0.5:
+                arch = 'fusion'
+            else:
+                arch = 'rev-fusion'
 
         if epoch > 20:
             # forward 1

@@ -152,6 +152,8 @@ class Model(nn.Module):
         # ------------------------------------------------
         if arch == 'fusion':
             fusion_embed = torch.cat([eeg_embed, fnirs_embed], dim=-1)
+        if arch == 'rev-fusion':
+            fusion_embed = torch.cat([fnirs_embed, eeg_embed], dim=-1)
         if arch == 'eeg':
             fusion_embed = torch.cat([eeg_embed, eeg_embed], dim=-1)
         if arch == 'fnirs':
