@@ -215,8 +215,8 @@ class Model(nn.Module):
         aligned_eeg, aligned_fnirs = self.cross(eeg_seq, fnirs_seq)
 
         # 残差
-        eeg_seq = eeg_seq + aligned_eeg
-        fnirs_seq = fnirs_seq + aligned_fnirs
+        eeg_seq = eeg_seq + aligned_fnirs
+        fnirs_seq = fnirs_seq + aligned_eeg
 
         # pooling
         eeg_embed = self.pool(eeg_seq)
