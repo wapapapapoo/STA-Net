@@ -65,7 +65,7 @@ def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
             else:
                 arch = 'rev-fusion'
 
-        if epoch > 20:
+        if True:
             # forward 1
             output1 = model(eeg, fnirs, arch=arch)
             output1["trial_group"] = trial_group
@@ -187,7 +187,7 @@ def train(model, train_loader, val_loader, args):
 
     loss_fn = LossModule()
 
-    for epoch in range(50):
+    for epoch in range(20):
 
         train_loss = train_epoch(
             epoch,
