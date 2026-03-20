@@ -130,14 +130,14 @@ class Model(nn.Module):
         self.session_fusion = nn.Linear(deeg + dfnirs, num_sessions)
 
     def forward(self, eeg, fnirs, alpha=0.0, arch='fusion'):
-        eeg_seq = self.eeg_encoder(eeg)   # [B, T, d]
-        # fnirs_seq = self.fnirs_encoder(fnirs)   # [B, T, d]
+        # eeg_seq = self.eeg_encoder(eeg)   # [B, T, d]
+        fnirs_seq = self.fnirs_encoder(fnirs)   # [B, T, d]
 
-        eeg_embed = chunk_pool(eeg_seq)
-        # fnirs_embed = chunk_pool(fnirs_seq)
+        # eeg_embed = chunk_pool(eeg_seq)
+        fnirs_embed = chunk_pool(fnirs_seq)
 
-        eeg_logits = self.eeg_cls(eeg_embed)
-        # fnirs_logits = self.fnirs_cls(fnirs_embed)
+        # eeg_logits = self.eeg_cls(eeg_embed)
+        fnirs_logits = self.fnirs_cls(fnirs_embed)
 
         # if arch == 'fusion':
         #     fusion_embed = torch.cat([eeg_embed, fnirs_embed], dim=-1)
@@ -149,12 +149,12 @@ class Model(nn.Module):
         #     fusion_embed = torch.cat([torch.zeros_like(eeg_embed), fnirs_embed], dim=-1)
         # fusion_logits = self.fusion_cls(fusion_embed)
 
-        rev_eeg = grad_reverse(eeg_embed, alpha)
-        # rev_fnirs = grad_reverse(fnirs_embed, alpha)
+        # rev_eeg = grad_reverse(eeg_embed, alpha)
+        rev_fnirs = grad_reverse(fnirs_embed, alpha)
         # rev_fusion = grad_reverse(fusion_embed, alpha)
 
-        session_eeg = self.session_eeg(rev_eeg)
-        # session_fnirs = self.session_fnirs(rev_fnirs)
+        # session_eeg = self.session_eeg(rev_eeg)
+        session_fnirs = self.session_fnirs(rev_fnirs)
         # session_fusion = self.session_fusion(rev_fusion)
 
         # return {
@@ -175,13 +175,13 @@ class Model(nn.Module):
 
         
         return {
-            "logits": eeg_logits,
+            "logits": fnirs_logits,
 
-            "eeg_logits": eeg_logits,
-            "fnirs_logits": eeg_logits,
-            "fusion_logits": eeg_logits,
+            "eeg_logits": fnirs_logits,
+            "fnirs_logits": fnirs_logits,
+            "fusion_logits": fnirs_logits,
 
-            "session_eeg": session_eeg,
-            "session_fnirs": session_eeg,
-            "session_fusion": session_eeg,
+            "session_eeg": fnirs_logits,
+            "session_fnirs": fnirs_logits,
+            "session_fusion": fnirs_logits,
         }
