@@ -23,6 +23,7 @@ def grad_reverse(x, alpha=1.0):
     return GradReverse.apply(x, alpha)
 
 def chunk_pool(x, chunks=6):
+    return x.mean(dim=1)
     B, T, D = x.shape
     x = x.view(B, chunks, T // chunks, D)   # [B, C, Tc, D]
     x = x.mean(dim=2)                       # [B, C, D] 每段一个向量
