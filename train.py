@@ -70,6 +70,17 @@ def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
             output1 = model(eeg, fnirs, arch=arch)
             output1["trial_group"] = trial_group
 
+            if random.random() < 0.5:
+                if random.random() < 0.5:
+                    arch = 'eeg'
+                else:
+                    arch = 'fnirs'
+            else:
+                if random.random() < 0.5:
+                    arch = 'fusion'
+                else:
+                    arch = 'rev-fusion'
+
             # forward 2
             output2 = model(eeg, fnirs, arch=arch)
             output2["trial_group"] = trial_group
