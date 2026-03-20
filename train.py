@@ -34,7 +34,7 @@ class LossModule(nn.Module):
             self.ce(output["session_fusion"], trial_group)
         )
 
-        loss = loss_main + max(0, (epoch - 20) / 30 * 0.3) * loss_session
+        loss = loss_main + loss_session #max(0, (epoch - 20) / 30 * 0.3) * loss_session
 
         return loss
 
@@ -128,7 +128,7 @@ def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
 
         for p in model.parameters():
             if p.grad is not None:
-                p.grad += 0.0001 * torch.randn_like(p.grad)
+                p.grad += 0.001 * torch.randn_like(p.grad)
 
         optimizer.step()
         total_loss += loss.item()
