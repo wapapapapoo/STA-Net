@@ -87,7 +87,8 @@ def build_split(eeg, fnirs, label, session, n_trials=60, windows_per_trial=10):
     # middle = train_trials[middle_start:middle_start + 4]
     # back = train_trials[-3:]
 
-    start = np.random.randint(0, n - 10 + 1)
+    # start = np.random.randint(0, n - 10 + 1)
+    start = 25
     val_trials = train_trials[start:start + 10]
     train_trials = np.concatenate([train_trials[:start], train_trials[start + 10:]])
 
