@@ -129,7 +129,7 @@ class Model(nn.Module):
         self.session_fnirs = nn.Linear(dfnirs, num_sessions)
         self.session_fusion = nn.Linear(deeg + dfnirs, num_sessions)
 
-    def forward(self, eeg, fnirs, alpha=0.5, arch='fusion'):
+    def forward(self, eeg, fnirs, arch='fusion'):
         # eeg_seq = self.eeg_encoder(eeg)   # [B, T, d]
         fnirs_seq = self.fnirs_encoder(fnirs)   # [B, T, d]
 
@@ -150,7 +150,7 @@ class Model(nn.Module):
         # fusion_logits = self.fusion_cls(fusion_embed)
 
         # rev_eeg = grad_reverse(eeg_embed, alpha)
-        rev_fnirs = grad_reverse(fnirs_embed, alpha)
+        rev_fnirs = grad_reverse(fnirs_embed, 2.0)
         # rev_fusion = grad_reverse(fusion_embed, alpha)
 
         # session_eeg = self.session_eeg(rev_eeg)
