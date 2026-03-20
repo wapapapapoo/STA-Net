@@ -23,7 +23,7 @@ def grad_reverse(x, alpha=1.0):
     return GradReverse.apply(x, alpha)
 
 def chunk_pool(x, chunks=6):
-    return x.mean(dim=1)
+    # return x.mean(dim=1)
     B, T, D = x.shape
     x = x.view(B, chunks, T // chunks, D)   # [B, C, Tc, D]
     x = x.mean(dim=2)                       # [B, C, D] 每段一个向量
@@ -150,7 +150,7 @@ class Model(nn.Module):
         # fusion_logits = self.fusion_cls(fusion_embed)
 
         # rev_eeg = grad_reverse(eeg_embed, alpha)
-        rev_fnirs = grad_reverse(fnirs_embed, 0.1)
+        rev_fnirs = grad_reverse(fnirs_embed, 0.2)
         # rev_fusion = grad_reverse(fusion_embed, alpha)
 
         # session_eeg = self.session_eeg(rev_eeg)
