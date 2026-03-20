@@ -110,8 +110,6 @@ class Model(nn.Module):
         self.eeg_encoder = EEGEncoder(out_dim=d)
         self.fnirs_encoder = FNIRSEncoder(out_dim=d)
 
-        # self.cross_attn = CrossModalAttention(dim=d, k_min=5, k_max=10)
-
         # Classifiers
         self.eeg_cls = nn.Linear(d, num_classes)
         self.fnirs_cls = nn.Linear(d, num_classes)
