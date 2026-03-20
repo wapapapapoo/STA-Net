@@ -144,13 +144,13 @@ class Model(nn.Module):
             fusion_embed = torch.cat([torch.zeros_like(eeg_embed_detach), fnirs_embed], dim=-1)
         fusion_logits = self.fusion_cls(fusion_embed)
 
-        rev_eeg = grad_reverse(eeg_embed, 0)
-        rev_fnirs = grad_reverse(fnirs_embed, 0.1)
-        rev_fusion = grad_reverse(fusion_embed, 0)
+        # rev_eeg = grad_reverse(eeg_embed, 0)
+        # rev_fnirs = grad_reverse(fnirs_embed, 0)
+        # rev_fusion = grad_reverse(fusion_embed, 0)
 
-        session_eeg = self.session_eeg(rev_eeg)
-        session_fnirs = self.session_fnirs(rev_fnirs)
-        session_fusion = self.session_fusion(rev_fusion)
+        # session_eeg = self.session_eeg(rev_eeg)
+        # session_fnirs = self.session_fnirs(rev_fnirs)
+        # session_fusion = self.session_fusion(rev_fusion)
 
         return {
             "logits": fusion_logits,
@@ -159,9 +159,9 @@ class Model(nn.Module):
             "fnirs_logits": fnirs_logits,
             "fusion_logits": fusion_logits,
 
-            "session_eeg": session_eeg,
-            "session_fnirs": session_fnirs,
-            "session_fusion": session_fusion,
+            # "session_eeg": session_eeg,
+            # "session_fnirs": session_fnirs,
+            # "session_fusion": session_fusion,
 
             "eeg_embed": eeg_embed,
             "fnirs_embed": fnirs_embed,

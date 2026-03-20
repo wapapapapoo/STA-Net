@@ -28,13 +28,13 @@ class LossModule(nn.Module):
 
         trial_group = output["trial_group"]
 
-        loss_session = (
-            self.ce(output["session_eeg"], trial_group) +
-            self.ce(output["session_fnirs"], trial_group) +
-            self.ce(output["session_fusion"], trial_group)
-        )
+        # loss_session = (
+        #     self.ce(output["session_eeg"], trial_group) +
+        #     self.ce(output["session_fnirs"], trial_group) +
+        #     self.ce(output["session_fusion"], trial_group)
+        # )
 
-        loss = loss_main + loss_session #max(0, (epoch - 20) / 30 * 0.3) * loss_session
+        loss = loss_main #+ max(0, (epoch - 20) / 30 * 0.3) * loss_session
 
         return loss
 
@@ -65,7 +65,7 @@ def train_epoch(epoch, model, loader, optimizer, loss_fn, args):
             else:
                 arch = 'rev-fusion'
 
-        if True:
+        if epoch < 20:
             # forward 1
             output1 = model(eeg, fnirs, arch=arch)
             output1["trial_group"] = trial_group
@@ -187,7 +187,7 @@ def train(model, train_loader, val_loader, args):
 
     loss_fn = LossModule()
 
-    for epoch in range(64):
+    for epoch in range(40):
 
         train_loss = train_epoch(
             epoch,
