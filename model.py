@@ -132,21 +132,20 @@ class Model(nn.Module):
         eeg_logits = self.eeg_cls(eeg_embed)
         fnirs_logits = self.fnirs_cls(fnirs_embed)
 
+        eeg_embed_detach = eeg_embed.detach()
+
         if arch == 'fusion':
-            fusion_embed = torch.cat([eeg_embed, fnirs_embed], dim=-1)
+            fusion_embed = torch.cat([eeg_embed_detach, fnirs_embed], dim=-1)
         if arch == 'rev-fusion':
-            fusion_embed = torch.cat([fnirs_embed, eeg_embed], dim=-1)
+            fusion_embed = torch.cat([fnirs_embed, eeg_embed_detach], dim=-1)
         if arch == 'eeg':
-            fusion_embed = torch.cat([eeg_embed, torch.zeros_like(fnirs_embed)], dim=-1)
+            fusion_embed = torch.cat([eeg_embed_detach, torch.zeros_like(fnirs_embed)], dim=-1)
         if arch == 'fnirs':
-            fusion_embed = torch.cat([torch.zeros_like(eeg_embed), fnirs_embed], dim=-1)
+            fusion_embed = torch.cat([torch.zeros_like(eeg_embed_detach), fnirs_embed], dim=-1)
         fusion_logits = self.fusion_cls(fusion_embed)
 
-        # ------------------------------------------------
-        # Domain adversarial (cross-session)
-        # ------------------------------------------------
         rev_eeg = grad_reverse(eeg_embed, 0)
-        rev_fnirs = grad_reverse(fnirs_embed, 0.2)
+        rev_fnirs = grad_reverse(fnirs_embed, 0.1)
         rev_fusion = grad_reverse(fusion_embed, 0)
 
         session_eeg = self.session_eeg(rev_eeg)
