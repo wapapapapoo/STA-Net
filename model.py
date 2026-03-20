@@ -44,10 +44,10 @@ class EEGEncoder(nn.Module):
             nn.ReLU(),
             nn.Dropout(0.3),
 
-            nn.Conv1d(hidden, hidden, kernel_size=5, padding=2),
-            nn.BatchNorm1d(hidden),
-            nn.ReLU(),
-            nn.Dropout(0.3),
+            # nn.Conv1d(hidden, hidden, kernel_size=5, padding=2),
+            # nn.BatchNorm1d(hidden),
+            # nn.ReLU(),
+            # nn.Dropout(0.3),
         )
 
         self.proj = nn.Linear(hidden, out_dim)
@@ -63,96 +63,27 @@ class EEGEncoder(nn.Module):
 # fNIRS Encoder (large kernel → slow dynamics)
 # ------------------------------------------------
 
-# class FNIRSEncoder(nn.Module):
-#     def __init__(self, in_ch=72, hidden=36, out_dim=128):
-#         super().__init__()
-
-#         self.conv = nn.Sequential(
-#             nn.Conv1d(in_ch, hidden, kernel_size=7, padding=3),
-#             nn.BatchNorm1d(hidden),
-#             nn.ReLU(),
-#             nn.Dropout(0.5),
-
-#             nn.Conv1d(hidden, out_dim, kernel_size=5, padding=2),
-#             nn.BatchNorm1d(out_dim),
-#             nn.ReLU(),
-#             nn.Dropout(0.5),
-#         )
-
-#     def forward(self, x):
-#         # x: [B, 72, 120]
-#         x = self.conv(x)              # [B, d, T]
-#         x = x.transpose(1, 2)         # [B, T, d]
-#         x = torch.tanh(x)
-#         return x
-
-class DWSConv(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size):
-        super().__init__()
-        self.depth_conv = nn.Conv2d(
-            in_channels,
-            in_channels,
-            kernel_size=kernel_size,
-            stride=1,
-            padding=0,
-            groups=in_channels
-        )
-        self.point_conv = nn.Conv2d(
-            in_channels,
-            out_channels,
-            kernel_size=1,
-            stride=1,
-            padding=0,
-            groups=1
-        )
-
-    def forward(self, x):
-        x = self.depth_conv(x)
-        x = self.point_conv(x)
-        return x
-
-
-
 class FNIRSEncoder(nn.Module):
-    def __init__(
-        self,
-        time_kernel=40,
-        spatial_kernel=72,
-        num_dhrconv=4,
-        num_dwconv=8
-    ):
+    def __init__(self, in_ch=72, hidden=36, out_dim=128):
         super().__init__()
 
-        self.conv1 = nn.Conv2d(
-            in_channels=1,
-            out_channels=num_dhrconv,
-            kernel_size=(1, time_kernel),
-            stride=1,
-            padding=0
+        self.conv = nn.Sequential(
+            nn.Conv1d(in_ch, hidden, kernel_size=7, padding=3),
+            nn.BatchNorm1d(hidden),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+
+            nn.Conv1d(hidden, out_dim, kernel_size=5, padding=2),
+            nn.BatchNorm1d(out_dim),
+            nn.ReLU(),
+            nn.Dropout(0.5),
         )
-        self.bn1 = nn.BatchNorm2d(num_dhrconv)
-
-        self.conv2 = DWSConv(
-            in_channels=num_dhrconv,
-            out_channels=num_dwconv,
-            kernel_size=(spatial_kernel, 1)
-        )
-        self.bn2 = nn.BatchNorm2d(num_dwconv)
-
-        self.act = nn.Sigmoid()
-
-        # for input [B, 72, 120]:
-        # after conv1: [B, 4, 72, 81]
-        # after conv2 with kernel=(72,1): [B, 8, 1, 81]
-        # flatten dim = 8 * 1 * 81 = 648
-        self.out_dim = num_dwconv * (120 - time_kernel + 1)
 
     def forward(self, x):
         # x: [B, 72, 120]
-        x = x.unsqueeze(1)              # [B, 1, 72, 120]
-        x = self.act(self.bn1(self.conv1(x)))   # [B, 4, 72, 81]
-        x = self.act(self.bn2(self.conv2(x)))   # [B, 8, 1, 81]
-        x = x.flatten(start_dim=1)      # [B, 648]
+        x = self.conv(x)              # [B, d, T]
+        x = x.transpose(1, 2)         # [B, T, d]
+        x = torch.tanh(x)
         return x
 
 
@@ -166,14 +97,14 @@ class Model(nn.Module):
         super().__init__()
 
         deeg = 128
+        dfnirs = 32
         d = 128
         num_classes = 2
         num_sessions = args["TRAIL_GROUP_AMOUNT"]
 
         # Encoders
         self.eeg_encoder = EEGEncoder(out_dim=deeg)
-        self.fnirs_encoder = FNIRSEncoder() # out_dim=648
-        dfnirs = self.fnirs_encoder.out_dim
+        self.fnirs_encoder = FNIRSEncoder(out_dim=dfnirs)
 
         # Classifiers
         self.eeg_cls = nn.Linear(deeg, num_classes)
@@ -193,9 +124,10 @@ class Model(nn.Module):
 
     def forward(self, eeg, fnirs, arch='fusion'):
         # eeg_seq = self.eeg_encoder(eeg)   # [B, T, d]
-        fnirs_embed = self.fnirs_encoder(fnirs)   # [B, T, d]
+        fnirs_seq = self.fnirs_encoder(fnirs)   # [B, T, d]
 
         # eeg_embed = chunk_pool(eeg_seq)
+        fnirs_embed = chunk_pool(fnirs_seq)
 
         # eeg_logits = self.eeg_cls(eeg_embed)
         fnirs_logits = self.fnirs_cls(fnirs_embed)
