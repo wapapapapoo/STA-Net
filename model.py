@@ -44,10 +44,10 @@ class EEGEncoder(nn.Module):
             nn.ReLU(),
             nn.Dropout(0.3),
 
-            # nn.Conv1d(hidden, hidden, kernel_size=5, padding=2),
-            # nn.BatchNorm1d(hidden),
-            # nn.ReLU(),
-            # nn.Dropout(0.3),
+            nn.Conv1d(hidden, hidden, kernel_size=5, padding=2),
+            nn.BatchNorm1d(hidden),
+            nn.ReLU(),
+            nn.Dropout(0.3),
         )
 
         self.proj = nn.Linear(hidden, out_dim)
@@ -122,7 +122,7 @@ class Model(nn.Module):
         self.session_fnirs = nn.Linear(dfnirs, num_sessions)
         self.session_fusion = nn.Linear(deeg + dfnirs, num_sessions)
 
-    def forward(self, eeg, fnirs, arch='fusion'):
+    def forward(self, eeg, fnirs, alpha=0.1, arch='fusion'):
         eeg_seq = self.eeg_encoder(eeg)   # [B, T, d]
         fnirs_seq = self.fnirs_encoder(fnirs)   # [B, T, d]
 
@@ -142,9 +142,12 @@ class Model(nn.Module):
             fusion_embed = torch.cat([torch.zeros_like(eeg_embed), fnirs_embed], dim=-1)
         fusion_logits = self.fusion_cls(fusion_embed)
 
-        rev_eeg = grad_reverse(eeg_embed, 0)
-        rev_fnirs = grad_reverse(fnirs_embed, 0.2)
-        rev_fusion = grad_reverse(fusion_embed, 0.2)
+        # ------------------------------------------------
+        # Domain adversarial (cross-session)
+        # ------------------------------------------------
+        rev_eeg = grad_reverse(eeg_embed, alpha)
+        rev_fnirs = grad_reverse(fnirs_embed, alpha)
+        rev_fusion = grad_reverse(fusion_embed, alpha)
 
         session_eeg = self.session_eeg(rev_eeg)
         session_fnirs = self.session_fnirs(rev_fnirs)
