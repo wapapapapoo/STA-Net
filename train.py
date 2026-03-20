@@ -34,7 +34,7 @@ class LossModule(nn.Module):
             self.ce(output["session_fusion"], trial_group)
         )
 
-        loss = loss_main #+ max(0, (epoch - 20) / 30 * 0.3) * loss_session
+        loss = loss_main + max(0, (epoch - 20) / 30 * 0.3) * loss_session
 
         return loss
 
