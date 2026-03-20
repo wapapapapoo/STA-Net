@@ -93,15 +93,20 @@ def build_split(eeg, fnirs, label, session, n_trials=60, windows_per_trial=10):
     # ---------------------------------------
 
     # trial → window index
-    def trials_to_indices(trials):
+    def trials_to_indices(trials, selected_offsets=None):
         idx = []
         for t in trials:
             start = t * windows_per_trial
-            end = (t + 1) * windows_per_trial
-            idx.extend(range(start, end))
+            if selected_offsets is None:
+                idx.extend(range(start, start + windows_per_trial))
+            else:
+                for off in selected_offsets:
+                    if off < windows_per_trial:
+                        idx.append(start + off)
         return np.array(idx)
 
-    train_idx = trials_to_indices(train_trials)
+    # train 只取 0s / 3s / 6s / 9s
+    train_idx = trials_to_indices(train_trials, selected_offsets=[0, 3, 6, 9])
     val_idx = trials_to_indices(val_trials)
     test_idx = trials_to_indices(test_trials)
 
