@@ -123,58 +123,45 @@ class Model(nn.Module):
         self.session_fusion = nn.Linear(deeg + dfnirs, num_sessions)
 
     def forward(self, eeg, fnirs, arch='fusion'):
-        # eeg_seq = self.eeg_encoder(eeg)   # [B, T, d]
+        eeg_seq = self.eeg_encoder(eeg)   # [B, T, d]
         fnirs_seq = self.fnirs_encoder(fnirs)   # [B, T, d]
 
-        # eeg_embed = chunk_pool(eeg_seq)
+        eeg_embed = chunk_pool(eeg_seq)
         fnirs_embed = chunk_pool(fnirs_seq)
 
-        # eeg_logits = self.eeg_cls(eeg_embed)
+        eeg_logits = self.eeg_cls(eeg_embed)
         fnirs_logits = self.fnirs_cls(fnirs_embed)
 
-        # if arch == 'fusion':
-        #     fusion_embed = torch.cat([eeg_embed, fnirs_embed], dim=-1)
-        # if arch == 'rev-fusion':
-        #     fusion_embed = torch.cat([fnirs_embed, eeg_embed], dim=-1)
-        # if arch == 'eeg':
-        #     fusion_embed = torch.cat([eeg_embed, torch.zeros_like(fnirs_embed)], dim=-1)
-        # if arch == 'fnirs':
-        #     fusion_embed = torch.cat([torch.zeros_like(eeg_embed), fnirs_embed], dim=-1)
-        # fusion_logits = self.fusion_cls(fusion_embed)
+        if arch == 'fusion':
+            fusion_embed = torch.cat([eeg_embed, fnirs_embed], dim=-1)
+        if arch == 'rev-fusion':
+            fusion_embed = torch.cat([fnirs_embed, eeg_embed], dim=-1)
+        if arch == 'eeg':
+            fusion_embed = torch.cat([eeg_embed, torch.zeros_like(fnirs_embed)], dim=-1)
+        if arch == 'fnirs':
+            fusion_embed = torch.cat([torch.zeros_like(eeg_embed), fnirs_embed], dim=-1)
+        fusion_logits = self.fusion_cls(fusion_embed)
 
-        # rev_eeg = grad_reverse(eeg_embed, alpha)
+        rev_eeg = grad_reverse(eeg_embed, 0.2)
         rev_fnirs = grad_reverse(fnirs_embed, 0.2)
-        # rev_fusion = grad_reverse(fusion_embed, alpha)
+        rev_fusion = grad_reverse(fusion_embed, 0.2)
 
-        # session_eeg = self.session_eeg(rev_eeg)
+        session_eeg = self.session_eeg(rev_eeg)
         session_fnirs = self.session_fnirs(rev_fnirs)
-        # session_fusion = self.session_fusion(rev_fusion)
+        session_fusion = self.session_fusion(rev_fusion)
 
-        # return {
-        #     "logits": fusion_logits,
-
-        #     "eeg_logits": eeg_logits,
-        #     "fnirs_logits": fnirs_logits,
-        #     "fusion_logits": fusion_logits,
-
-        #     "session_eeg": session_eeg,
-        #     "session_fnirs": session_fnirs,
-        #     "session_fusion": session_fusion,
-
-        #     "eeg_embed": eeg_embed,
-        #     "fnirs_embed": fnirs_embed,
-        #     "fusion_embed": fusion_embed
-        # }
-
-        
         return {
-            "logits": fnirs_logits,
+            "logits": fusion_logits,
 
-            "eeg_logits": fnirs_logits,
+            "eeg_logits": eeg_logits,
             "fnirs_logits": fnirs_logits,
-            "fusion_logits": fnirs_logits,
+            "fusion_logits": fusion_logits,
 
-            "session_eeg": session_fnirs,
+            "session_eeg": session_eeg,
             "session_fnirs": session_fnirs,
-            "session_fusion": session_fnirs,
+            "session_fusion": session_fusion,
+
+            "eeg_embed": eeg_embed,
+            "fnirs_embed": fnirs_embed,
+            "fusion_embed": fusion_embed
         }
