@@ -193,10 +193,9 @@ class Model(nn.Module):
 
     def forward(self, eeg, fnirs, arch='fusion'):
         # eeg_seq = self.eeg_encoder(eeg)   # [B, T, d]
-        fnirs_seq = self.fnirs_encoder(fnirs)   # [B, T, d]
+        fnirs_embed = self.fnirs_encoder(fnirs)   # [B, T, d]
 
         # eeg_embed = chunk_pool(eeg_seq)
-        fnirs_embed = chunk_pool(fnirs_seq)
 
         # eeg_logits = self.eeg_cls(eeg_embed)
         fnirs_logits = self.fnirs_cls(fnirs_embed)
