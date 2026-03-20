@@ -107,7 +107,7 @@ class Model(nn.Module):
         dfnirs = 32
         d = 128
         num_classes = 2
-        num_sessions = 40
+        num_sessions = args["TRAIL_GROUP_AMOUNT"]
 
         # Encoders
         self.eeg_encoder = EEGEncoder(out_dim=deeg)
