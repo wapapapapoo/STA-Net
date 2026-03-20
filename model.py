@@ -142,7 +142,7 @@ class Model(nn.Module):
             fusion_embed = torch.cat([torch.zeros_like(eeg_embed), fnirs_embed], dim=-1)
         fusion_logits = self.fusion_cls(fusion_embed)
 
-        rev_eeg = grad_reverse(eeg_embed, 0.2)
+        rev_eeg = grad_reverse(eeg_embed, 0)
         rev_fnirs = grad_reverse(fnirs_embed, 0.2)
         rev_fusion = grad_reverse(fusion_embed, 0.2)
 
