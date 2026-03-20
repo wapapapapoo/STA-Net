@@ -73,23 +73,16 @@ class FNIRSEncoder(nn.Module):
             nn.ReLU(),
             nn.Dropout(0.5),
 
-            nn.Conv1d(hidden, hidden, kernel_size=5, padding=2),
-            nn.BatchNorm1d(hidden),
+            nn.Conv1d(hidden, out_dim, kernel_size=5, padding=2),
+            nn.BatchNorm1d(out_dim),
             nn.ReLU(),
             nn.Dropout(0.5),
         )
 
-        self.proj = nn.Sequential(
-            nn.Linear(hidden, out_dim),
-            nn.ReLU(),
-            nn.Dropout(0.4)
-        )
-
     def forward(self, x):
         # x: [B, 72, 120]
-        x = self.conv(x)              # [B, hidden, T]
-        x = x.transpose(1, 2)         # [B, T, hidden]
-        x = self.proj(x)              # [B, T, d]
+        x = self.conv(x)              # [B, d, T]
+        x = x.transpose(1, 2)         # [B, T, d]
         x = torch.tanh(x)
         return x
 
