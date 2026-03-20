@@ -63,11 +63,11 @@ class EEGEncoder(nn.Module):
 # ------------------------------------------------
 
 class FNIRSEncoder(nn.Module):
-    def __init__(self, in_ch=72, hidden=72, out_dim=128):
+    def __init__(self, in_ch=72, hidden=36, out_dim=128):
         super().__init__()
 
         self.conv = nn.Sequential(
-            nn.Conv1d(in_ch, hidden, kernel_size=15, padding=7),
+            nn.Conv1d(in_ch, hidden, kernel_size=5, padding=2),
             nn.BatchNorm1d(hidden),
             nn.ReLU(),
             nn.Dropout(0.5),
@@ -102,29 +102,31 @@ class Model(nn.Module):
     def __init__(self, args):
         super().__init__()
 
+        deeg = 128
+        dfnirs = 32
         d = 128
         num_classes = 2
         num_sessions = 40
 
         # Encoders
-        self.eeg_encoder = EEGEncoder(out_dim=d)
-        self.fnirs_encoder = FNIRSEncoder(out_dim=d)
+        self.eeg_encoder = EEGEncoder(out_dim=deeg)
+        self.fnirs_encoder = FNIRSEncoder(out_dim=dfnirs)
 
         # Classifiers
-        self.eeg_cls = nn.Linear(d, num_classes)
-        self.fnirs_cls = nn.Linear(d, num_classes)
+        self.eeg_cls = nn.Linear(deeg, num_classes)
+        self.fnirs_cls = nn.Linear(dfnirs, num_classes)
         self.fusion_cls = nn.Sequential(
-            nn.Linear(2 * d, d),
+            nn.Linear(deeg + dfnirs, d),
             nn.ReLU(),
             nn.Dropout(0.5),
             nn.Linear(d, num_classes)
         )
-        # self.fusion_cls = nn.Linear(2 * d, num_classes)
+        # self.fusion_cls = nn.Linear(deeg + dfnirs, num_classes)
 
         # Session discriminators (domain adversarial)
-        self.session_eeg = nn.Linear(d, num_sessions)
-        self.session_fnirs = nn.Linear(d, num_sessions)
-        self.session_fusion = nn.Linear(2 * d, num_sessions)
+        self.session_eeg = nn.Linear(deeg, num_sessions)
+        self.session_fnirs = nn.Linear(dfnirs, num_sessions)
+        self.session_fusion = nn.Linear(deeg + dfnirs, num_sessions)
 
     def forward(self, eeg, fnirs, alpha=0.0, arch='fusion'):
 
