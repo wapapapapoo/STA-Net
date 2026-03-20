@@ -224,7 +224,4 @@ def train(model, train_loader, val_loader, args):
             f"Tfa {test_fnirs_acc:.4f} ", flush=True
         )
 
-        if train_acc > 0.999999:
-            break
-
     return model

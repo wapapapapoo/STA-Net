@@ -150,7 +150,7 @@ class Model(nn.Module):
         # fusion_logits = self.fusion_cls(fusion_embed)
 
         # rev_eeg = grad_reverse(eeg_embed, alpha)
-        rev_fnirs = grad_reverse(fnirs_embed, 0.2)
+        rev_fnirs = grad_reverse(fnirs_embed, 0.1)
         # rev_fusion = grad_reverse(fusion_embed, alpha)
 
         # session_eeg = self.session_eeg(rev_eeg)
