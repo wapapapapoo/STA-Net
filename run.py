@@ -106,7 +106,7 @@ def build_split(eeg, fnirs, label, session, n_trials=60, windows_per_trial=10):
         return np.array(idx)
 
     # train 只取 0s / 3s / 6s / 9s
-    train_idx = trials_to_indices(train_trials, selected_offsets=[0, 3, 6, 9])
+    train_idx = trials_to_indices(train_trials, selected_offsets=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
     val_idx = trials_to_indices(val_trials)
     test_idx = trials_to_indices(test_trials)
 
