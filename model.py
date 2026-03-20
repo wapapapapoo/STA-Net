@@ -181,7 +181,7 @@ class Model(nn.Module):
             "fnirs_logits": fnirs_logits,
             "fusion_logits": fnirs_logits,
 
-            "session_eeg": fnirs_logits,
-            "session_fnirs": fnirs_logits,
-            "session_fusion": fnirs_logits,
+            "session_eeg": session_fnirs,
+            "session_fnirs": session_fnirs,
+            "session_fusion": session_fnirs,
         }
