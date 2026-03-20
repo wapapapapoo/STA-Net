@@ -68,15 +68,15 @@ class FNIRSEncoder(nn.Module):
         super().__init__()
 
         self.conv = nn.Sequential(
-            nn.Conv1d(in_ch, hidden, kernel_size=5, padding=2),
+            nn.Conv1d(in_ch, hidden, kernel_size=7, padding=3),
             nn.BatchNorm1d(hidden),
             nn.ReLU(),
             nn.Dropout(0.5),
 
-            # nn.Conv1d(hidden, hidden, kernel_size=15, padding=7),
-            # nn.BatchNorm1d(hidden),
-            # nn.ReLU(),
-            # nn.Dropout(0.5),
+            nn.Conv1d(hidden, hidden, kernel_size=5, padding=2),
+            nn.BatchNorm1d(hidden),
+            nn.ReLU(),
+            nn.Dropout(0.5),
         )
 
         self.proj = nn.Sequential(
